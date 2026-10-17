@@ -53,3 +53,47 @@ def test_deepseek_request_shape(monkeypatch):
     assert seen["auth"] == "Bearer test-ds-key"
     assert seen["body"]["reasoning_effort"] == "high" and seen["body"]["response_format"] == {"type": "json_object"}
     assert j["choices"][0]["message"]["content"] == '{"ok": true}'
+
+
+def test_keyless_run_labels_match_the_submission(monkeypatch):
+    """No LLM key at all (a judge cloning the repo): mock mode shows DeepSeek labels and model names, the same provider
+    the hosted demo and the write-up use, instead of an unrelated default."""
+    _clear(monkeypatch)
+    s = config.reload_settings()
+    assert s.llm_provider == "deepseek" and s.llm_label == "DeepSeek API" and not s.llm_live
+    assert s.models() == {"fast": "deepseek-flash", "main": "deepseek-flash", "deep": "deepseek-v4-pro"}
+    from fastapi.testclient import TestClient
+    from app.main import app
+    h = TestClient(app).get("/api/health").json()
+    assert h["adapters"]["llm"] == {**h["adapters"]["llm"], "mode": "mock", "provider": "DeepSeek API", "provider_id": "deepseek"}
+
+
+def test_quickstart_copy_is_mode_aware():
+    """The 'Judging in a hurry?' box promises real sandbox calls only when PayPal is live; keyless runs get mock wording
+    that names the button that actually exists there (⏩ paid)."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / "app" / "static"
+    html, js = (root / "index.html").read_text(), (root / "app.js").read_text()
+    assert 'id="qs-text"' in html and "client pays (sandbox card)" in html
+    assert 'h.adapters.payments.mode !== "live"' in js and "offline mock mode" in js and "⏩ paid" in js
+    # the payments card really labels its mock pay button "⏩ paid" (keeps the copy honest if the button is renamed)
+    assert 'data-a="pay" data-id="${i.id}">⏩ paid</button>' in js
+
+
+def test_paypal_badge_says_sandbox_not_live(live):
+    """With sandbox keys the adapter is 'live' (real API calls) but the header badge must read 'sandbox', so nobody
+    mistakes the demo for real-money payments. Keyless runs read 'mock'."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    a = TestClient(app).get("/api/health").json()["adapters"]
+    assert a["payments"]["mode"] == "live" and a["payments"]["env"] == "sandbox"
+    assert a["webhooks"]["env"] == "mock"  # no PAYPAL_WEBHOOK_ID in the fake env
+    js = (__import__("pathlib").Path(__file__).resolve().parents[1] / "app" / "static" / "app.js").read_text()
+    assert "${esc(a.env || a.mode)}" in js
+
+
+def test_paypal_badge_keyless_is_mock():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    a = TestClient(app).get("/api/health").json()["adapters"]
+    assert a["payments"]["mode"] == "mock" and a["payments"]["env"] == "mock"

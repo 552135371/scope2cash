@@ -98,8 +98,12 @@ def health():
         "llm": {"mode": "live" if s.llm_live else "mock", "provider": s.llm_label, "provider_id": s.llm_provider, "models": models,
                 "model_check": chk.as_dict()},
         "search": {"mode": "live" if s.search_live else "mock", "provider": "Tavily"},
-        "payments": {"mode": "live" if s.payments_live else "mock", "provider": f"PayPal Invoicing v2 + Orders v2 ({s.paypal_mode if s.payments_live else 'offline'})"},
+        # "env" is what the header badge shows for PayPal: "sandbox" (or "live" only with real money), never a bare
+        # "live" that a judge could read as real payments.
+        "payments": {"mode": "live" if s.payments_live else "mock", "env": s.paypal_mode if s.payments_live else "mock",
+                     "provider": f"PayPal Invoicing v2 + Orders v2 ({s.paypal_mode if s.payments_live else 'offline'})"},
         "webhooks": {"mode": "live" if (s.payments_live and s.paypal_webhook_id) else "mock",
+                     "env": s.paypal_mode if (s.payments_live and s.paypal_webhook_id) else "mock",
                      "provider": "PayPal webhooks (verify-webhook-signature)" if s.payments_live else "local HMAC-signed simulator",
                      "path": "/api/paypal/webhook"},
         "agent_toolkit": {"mode": "live" if s.payments_live else "mock", "provider": paypal_agent.toolkit_label(),

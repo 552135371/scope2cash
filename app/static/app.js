@@ -63,11 +63,14 @@ async function healthWithWakeup() {
 (async () => {
   const h = await healthWithWakeup();
   const m = h.adapters.llm.models || {};
-  const b = (label, a, extra = "") => `<span class="badge ${extra}" title="${esc(a.provider)}${a.models ? "\n" + esc(Object.entries(a.models).map(([k, v]) => k + ": " + v).join("\n")) : ""}"><span class="dot ${a.mode === "live" ? "live" : ""}"></span>${label} · ${a.mode}</span>`;
+  const b = (label, a, extra = "") => `<span class="badge ${extra}" title="${esc(a.provider)}${a.models ? "\n" + esc(Object.entries(a.models).map(([k, v]) => k + ": " + v).join("\n")) : ""}"><span class="dot ${a.mode === "live" ? "live" : ""}"></span>${label} · ${esc(a.env || a.mode)}</span>`;
   $("#badges").innerHTML = b("LLM · " + (h.adapters.llm.provider || "?"), h.adapters.llm, h.warnings.length ? "warn" : "") + b("Tavily", h.adapters.search) + b("PayPal", h.adapters.payments)
     + (h.adapters.webhooks ? b("Webhooks", h.adapters.webhooks) : "");
   state.health = h; window.dispatchEvent(new CustomEvent("s2c:health", { detail: h }));
   state.demoEmail = h.demo_client_email;
+  if (h.adapters.payments.mode !== "live") {  // keyless local run: PayPal is the offline mock, so don't promise sandbox calls
+    $("#qs-text").innerHTML = "Skip the AI wait: load a sample project recorded from a real DeepSeek run (no model call, instant), then click <b>Create PayPal invoice drafts</b> under the quote. PayPal is in <b>offline mock mode</b> here (no sandbox keys set): use <b>⏩ paid</b> to simulate the client paying. With sandbox keys, these become real PayPal sandbox calls.";
+  }
   const banner = h.warnings.map((w) => `<div>⚠ ${esc(w)}</div>`).concat((h.notices || []).map((n) => `<div>ℹ ${esc(n)}</div>`));
   if (banner.length) { $("#healthwarn").innerHTML = banner.join(""); $("#healthwarn").classList.remove("hidden"); }
   SAMPLES = await api("/api/samples");

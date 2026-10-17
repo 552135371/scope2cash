@@ -3,7 +3,7 @@
 **From a messy client brief to a paid invoice: an AI agent that scopes, prices with cited market data, and bills by milestone through PayPal, with a human approving every outbound step.**
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/552135371/scope2cash)
-![Tests](https://img.shields.io/badge/tests-77%20passing-brightgreen) ![PayPal](https://img.shields.io/badge/PayPal-sandbox%20verified-003087) ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
+![Tests](https://img.shields.io/badge/tests-90%20passing-brightgreen) ![PayPal](https://img.shields.io/badge/PayPal-sandbox%20verified-003087) ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 ## For judges: 60-second tour
 - **What it does:** paste a client brief → milestone scope → market-grounded price → quote → one PayPal invoice per milestone → the client pays → the invoice flips to **PAID** through a verified webhook → a collections agent chases late payers. Every outbound action (send, remind, cancel) waits for a human click.
@@ -16,6 +16,15 @@
 - **Judging in a hurry:** click **⚡ Instant sample project** in step 1. It replays a scope, price reference and proposal recorded from a real DeepSeek run (no model call, so it is instant and works even when the demo's daily AI budget is spent), re-priced from today. Then **Create PayPal invoice drafts** → **Approve & send** → **⏩ client pays (sandbox card)**: real PayPal sandbox Invoicing and Orders v2 calls, no PayPal login needed. The invoice turns **PAID**, and PayPal's own `INVOICING.INVOICE.PAID` webhook shows up in the Pipeline's event feed marked "verified by PayPal" (click Refresh after a few seconds).
 - **Try it without any keys:** every adapter has a clearly labelled mock mode, so `uvicorn app.main:app` runs the whole flow offline (see Quick start).
 - **Verified on 2026-10-17 in the PayPal sandbox:** draft → send → checkout order → test-card capture → invoice `PAID`, with no real money involved (see *Checkout links* below and `eval/sandbox_smoke.md`).
+
+### Judging criteria → where to check it
+| Criterion | What to look at | Evidence you can verify |
+|---|---|---|
+| **Technological implementation** (PayPal + AI) | Four PayPal surfaces in one flow: Invoicing v2, Orders v2, verified Webhooks, Agent Toolkit tools driven by DeepSeek function calling | `app/adapters/payments.py`, `app/adapters/checkout.py`, `app/webhooks.py`, `app/paypal_agent.py`; contract tests assert the exact PayPal requests (`tests/test_contracts.py`, `tests/test_paypal_track.py`, `tests/test_checkout.py`); `python -m pytest -q` (90 tests, no network) |
+| **Design** (complete product, not a PoC) | One screen from brief to cash: stepper → quote → invoices → AG Grid pipeline with chart, scoreboard and agent nudges inline; every outbound action waits for a click | Hosted demo (⚡ path, ~2 min, no login); `scripts/screenshots_aggrid.py` asserts the chart ↔ grid ↔ scoreboard links in a real browser |
+| **Potential impact** | Freelancers who invoice clients directly. In a 2025 survey of 3,300 freelancers, only 15% said they are always paid on time ([Remote, *State of Freelance Work 2025*](https://assets.ctfassets.net/8naaccf28y0f/7llxHUuxPx38PzrA1lMdES/03a2a0b9c85384fb9b4471e16426f02d/The_State_of_Freelance_Work_2025.pdf)); 71% of US freelancers have had trouble collecting payment at some point ([Freelancers Union, 2015](https://www.onlabor.org/wp-content/uploads/2017/05/FU_NonpaymentReport_r3.pdf)) | Overdue → agent proposes a PayPal reminder → you approve → PayPal sends it; payment → verified webhook → PAID, no manual bookkeeping |
+| **Innovation** | Scope and price are grounded (stated budget/deadline only, prices only from cited figures), and the collections agent acts *through PayPal's own toolkit* but can only propose writes | Refusal cases in `eval/results_agent_live_deepseek.md` (11/11 live: paid/draft refusals, ambiguous cancel, prompt injection) |
+| **Presentation** | Under-3-minute video of the live sandbox loop, including a real PayPal-verified webhook | Video link on the Devpost page; webhook proof in the event feed ("verified by PayPal") |
 
 ## What it does
 Freelance developers and designers lose hours, and money, turning "here's what we want..." into a scoped, fairly priced, milestone-based quote, and then chasing payment. Scope2Cash runs that whole pipeline:
@@ -119,7 +128,7 @@ uvicorn app.main:app --port 8765
 ## Configuration
 | Variable | Default | Purpose |
 |---|---|---|
-| `LLM_PROVIDER` | first provider with a key (`nebius`, `deepseek`, `nvidia`) | `deepseek` / `nvidia` / `nebius` / `custom` |
+| `LLM_PROVIDER` | first provider with a key (`nebius`, `deepseek`, `nvidia`); with no key, mock mode uses DeepSeek's labels | `deepseek` / `nvidia` / `nebius` / `custom` |
 | `DEEPSEEK_API_KEY` | (empty → mock) | DeepSeek API key (`DEEPSEEK_BASE_URL` defaults to `https://api.deepseek.com`) |
 | `NVIDIA_API_KEY` / `NEBIUS_API_KEY` | (empty) | Keys for NVIDIA NIM / Nebius Token Factory (`NVIDIA_BASE_URL`, `NEBIUS_BASE_URL`) |
 | `MODEL_FAST` / `MODEL_MAIN` / `MODEL_DEEP` | provider defaults (table above) | Tier routing |
@@ -151,7 +160,7 @@ uvicorn app.main:app --port 8765
 
 ## Quality: evals and tests
 ```bash
-python -m pytest -q                       # 86 tests: flow, HTTP contracts, webhooks, agent, dashboard roll-ups (no network)
+python -m pytest -q                       # 90 tests: flow, HTTP contracts, webhooks, agent, dashboard roll-ups (no network)
 python scripts/eval_agent.py              # collections agent: 11 instruction -> exact-proposal cases
 python scripts/eval.py                    # eval set, mock mode -> eval/results.md
 python scripts/eval.py --set holdout      # 4 hold-out briefs never used to tune the heuristics

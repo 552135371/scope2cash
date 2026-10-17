@@ -20,7 +20,9 @@ DEFAULT_MODEL_MAIN = "nvidia/nemotron-3-super-120b-a12b"
 DEFAULT_MODEL_DEEP = "nvidia/Nemotron-3-Ultra-550b-a55b"
 
 # LLM providers (all OpenAI-compatible). `LLM_PROVIDER` picks one explicitly; otherwise the first provider whose key
-# is set wins, in this order: nebius, deepseek, nvidia. Keys are read from the environment only, never from code.
+# is set wins, in this order: nebius, deepseek, nvidia. With no key at all, the labels and model names shown in mock mode
+# are DeepSeek's (the hosted demo's provider), so a keyless local run matches the submission. Keys are read from the
+# environment only, never from code.
 PROVIDERS = {
     "nebius": {"label": "Nebius Token Factory", "family": "NVIDIA Nemotron", "key_env": "NEBIUS_API_KEY",
                "base_env": "NEBIUS_BASE_URL", "base": "https://api.tokenfactory.nebius.com/v1/",
@@ -45,7 +47,7 @@ def _provider() -> str:
     for name in ("nebius", "deepseek", "nvidia"):
         if (os.getenv(PROVIDERS[name]["key_env"]) or "").strip():
             return name
-    return "nebius"
+    return "deepseek"
 
 
 def _pv(i_field: str, idx: int = -1):
