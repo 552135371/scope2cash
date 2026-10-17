@@ -85,3 +85,35 @@ def test_restart_messages_for_judges(monkeypatch):
     assert any("Free hosting" in n for n in h["notices"]) and h["booted_at"]
     r = c.post("/api/invoices/INV2-GONE-0000/send")
     assert r.status_code == 404 and "restarted" in r.json()["detail"]
+
+
+def test_agent_list_is_one_page_of_known_invoices(live):
+    """A busy (shared) PayPal sandbox must not make the collections agent page through foreign invoices."""
+    import httpx
+    from app import paypal_agent
+    from app.models import Invoice
+    mine = store.save(Invoice(id="INV2-MINE-0001", number="S2C-1", milestone="Build", amount=500, currency="USD",
+                              due_date="2026-01-01", client_email="a@x.example.com", status="SENT", provider="paypal-sandbox",
+                              client_name="Bloom", project="App", created_at=store.now()))
+    ensure_samples()
+    seen = []
+
+    def handler(req: httpx.Request):
+        if req.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "A21AA-test", "expires_in": 32400})
+        if req.url.path == "/v2/invoicing/invoices":
+            seen.append(dict(req.url.params))
+            items = [{"id": mine.id, "status": "UNPAID", "detail": {"invoice_number": "S2C-1"}}] + \
+                    [{"id": f"INV2-FOREIGN-{n:04d}", "status": "UNPAID", "detail": {}} for n in range(60)]
+            return httpx.Response(200, json={"total_items": 61, "total_pages": 4, "items": items})
+        raise AssertionError(req.url)
+
+    live(handler)
+    cl = paypal_agent.HybridToolkitClient()
+    page1 = cl.get("/v2/invoicing/invoices?page=1&page_size=20")
+    ids = [it["id"] for it in page1["items"]]
+    assert mine.id in ids and not any("FOREIGN" in i for i in ids)
+    assert len(ids) == 1 + len(ROWS) and page1["total_pages"] == 1 and page1["total_items"] == len(ids)
+    assert page1["items"][0]["x_scope2cash"]["client"] == "Bloom"
+    assert cl.get("/v2/invoicing/invoices?page=2")["items"] == []
+    assert seen == [{"page": "1", "page_size": "100", "total_required": "true"}]

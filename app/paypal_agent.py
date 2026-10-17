@@ -175,13 +175,20 @@ class HybridToolkitClient:
         u = urlparse(uri)
         if u.path != "/v2/invoicing/invoices":
             return self._for(uri).get(uri)
-        out = self.live.get(uri) or {}
-        page = (parse_qs(u.query).get("page") or ["1"])[0]
-        if str(page) == "1":
-            local = [to_paypal_invoice(i) for i in store.all_invoices() if i.provider == "mock"]
-            out = {**out, "items": list(out.get("items") or []) + local,
-                   "total_items": int(out.get("total_items") or 0) + len(local)}
-        return out
+        # The PayPal account can hold many invoices Scope2Cash never created (other apps, earlier test runs; on a
+        # shared sandbox the list keeps growing). Paging through them made the model run out of steps before it acted.
+        # So: one PayPal call for the newest 100, keep only invoices this pipeline knows (the same rule the webhook
+        # listener and the write guard apply), add the labelled mock samples, and answer as a single page.
+        page = str((parse_qs(u.query).get("page") or ["1"])[0])
+        if page != "1":
+            return {"items": [], "total_items": 0, "total_pages": 1}
+        known = {i.id: i for i in store.all_invoices()}
+        out = self.live.get("/v2/invoicing/invoices?page=1&page_size=100&total_required=true") or {}
+        live_items = [{**it, "x_scope2cash": {"client": known[it["id"]].client_name, "project": known[it["id"]].project}}
+                      for it in (out.get("items") or []) if it.get("id") in known and known[it["id"]].provider != "mock"]
+        local = [to_paypal_invoice(i) for i in known.values() if i.provider == "mock"]
+        items = live_items + local
+        return {**out, "items": items, "total_items": len(items), "total_pages": 1}
 
     def post(self, uri: str, payload: Any) -> Any:
         return self._for(uri).post(uri, payload)
