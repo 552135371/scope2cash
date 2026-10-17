@@ -9,6 +9,7 @@ Live: PayPal Invoicing API v2 (sandbox by default), checked against PayPal's pub
   GET  /v2/invoicing/invoices/{id}           status, detail.metadata.recipient_view_url, due_amount, payments
   POST /v2/invoicing/invoices/{id}/remind    204 No Content
   POST /v1/notifications/verify-webhook-signature   postback check of a webhook delivery -> {verification_status}
+  GET  /v1/notifications/webhooks            subscribed listener URLs + event types (go-live smoke check only)
 Note from the spec: custom `subject`/`note` on send/remind are not honoured (PayPal uses its own email text),
 so Scope2Cash's personalised reminder is a separate draft the freelancer sends through their own channel.
 
@@ -229,6 +230,11 @@ class PayPalInvoicing:
             return inv.model_copy(update={"status": "CANCELLED", "provider_status": "CANCELLED"})
 
     # ---- webhooks
+    def list_webhooks(self) -> List[Dict[str, Any]]:
+        """GET /v1/notifications/webhooks: the listener URLs subscribed for this REST app (read-only)."""
+        r = self._call("GET", "/v1/notifications/webhooks")
+        return list((r.json() if r.content else {}).get("webhooks") or [])
+
     def verify_webhook_signature(self, raw_body: bytes, headers: Dict[str, str], webhook_id: str) -> str:
         """Postback verification (POST /v1/notifications/verify-webhook-signature). PayPal's guide warns that
         re-serialising the event can break verification, so the raw delivery bytes are spliced into the request

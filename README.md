@@ -123,12 +123,13 @@ uvicorn app.main:app --port 8765
 
 ## Quality: evals and tests
 ```bash
-python -m pytest -q                       # 56 tests: flow, HTTP contracts, webhooks, agent, UI contract (no network)
+python -m pytest -q                       # 62 tests: flow, HTTP contracts, webhooks, agent, UI contract (no network)
 python scripts/eval_agent.py              # collections agent: 11 instruction -> exact-proposal cases
 python scripts/eval.py                    # eval set, mock mode -> eval/results.md
 python scripts/eval.py --set holdout      # 4 hold-out briefs never used to tune the heuristics
 python scripts/eval.py --mode live        # same eval set against the live LLM (+ Tavily if keyed); prints tokens + est. cost
 python scripts/smoke_live.py              # cheap live check once keys are set -> eval/live_observations.md
+python scripts/paypal_sandbox_smoke.py    # go-live check: sandbox token -> invoice -> send -> status -> webhook (docs/DEPLOY.md)
 ```
 - **Contract tests** (`tests/test_contracts.py`) use `httpx.MockTransport` to assert the exact requests each live adapter sends (URLs, auth headers, payload fields) and that documented responses and errors parse correctly: 429 with Retry-After, JSON-mode rejection, invalid-JSON repair, timeouts, expired PayPal tokens, `DUPLICATE_INVOICE_NUMBER`, and send failures.
 - **PayPal-track tests** (`tests/test_paypal_track.py`, `tests/test_agent_eval.py`) cover webhook signature verification (with the raw bytes forwarded and SUCCESS/FAILURE handled), replay/forgery/stale-order handling, the toolkit tool catalog and handlers, the live LLM tool loop, approve/reject, and refusals: draft or paid invoices, ambiguous cancels, and a prompt-injected "cancel everything".
@@ -154,6 +155,7 @@ The blueprint turns on **public-demo mode**, because a judge-facing URL holds re
 ```bash
 docker build -t scope2cash . && docker run -p 8000:8000 --env-file .env scope2cash
 ```
+Step-by-step env vars, webhook subscription and the sandbox go-live check: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Architecture
 ```mermaid
