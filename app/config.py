@@ -102,17 +102,8 @@ class Settings:
         return any(domain == d or domain.endswith("." + d) for d in allowed)
 
     @property
-    def llm_endpoint(self) -> tuple[str, str, str]:
-        """(provider label, base_url, api_key) for the selected provider."""
-        if self.llm_provider == "nebius":
-            return "Nebius Token Factory", self.nebius_base_url, self.nebius_api_key
-        if self.llm_provider == "custom":
-            return "OpenAI-compatible", self.custom_base_url, self.custom_api_key
-        return "NVIDIA NIM (build.nvidia.com)", "https://integrate.api.nvidia.com/v1", self.nvidia_api_key
-
-    @property
     def llm_live(self) -> bool:
-        return bool(self.llm_endpoint[2]) and not self.force_mock and not OFFLINE_THIS_REQUEST.get()
+        return bool(self.nebius_api_key) and not self.force_mock and not OFFLINE_THIS_REQUEST.get()
 
     @property
     def search_live(self) -> bool:
