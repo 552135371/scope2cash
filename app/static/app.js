@@ -184,7 +184,7 @@ function renderInvoices() {
 }
 async function act(a, id) {
   const replace = (inv) => { state.invoices = state.invoices.map((x) => (x.id === inv.id ? inv : x)); renderInvoices(); };
-  if (a === "send") { replace(await api(`/api/invoices/${id}/send`, {})); toast("Invoice sent via PayPal"); }
+  if (a === "send") { const inv = await api(`/api/invoices/${id}/send`, {}); replace(inv); toast(inv.provider === "mock" ? "Invoice marked sent (mock: nothing left this machine)" : "Invoice sent via PayPal " + inv.provider.replace("paypal-", "")); }
   if (a === "pay" || a === "overdue") replace(await api(`/api/demo/${id}/${a}`, {}));
   if (a === "remind") {
     const r = await api(`/api/invoices/${id}/reminder`, {}); addTrace(r.trace);
@@ -198,7 +198,7 @@ async function act(a, id) {
     $("#m-copy").onclick = () => { navigator.clipboard?.writeText($("#m-subj").value + "\n\n" + $("#m-body").innerText); toast("Reminder copied"); };
     $("#m-send").onclick = (e) => busy(e.currentTarget, async () => {
       const s = await api(`/api/invoices/${id}/remind`, {}); addTrace(s.trace); replace(s.invoice);
-      $("#modal").classList.add("hidden"); toast("PayPal reminder sent for " + s.invoice.number);
+      $("#modal").classList.add("hidden"); toast((s.invoice.provider === "mock" ? "Mock reminder recorded for " : "PayPal reminder sent for ") + s.invoice.number);
     });
   }
 }

@@ -1,6 +1,6 @@
 # Scope2Cash eval results: main set (eval/briefs.json)
 
-- Run: 2026-10-17 15:32 (UTC+0800)
+- Run: 2026-10-17 15:39 (UTC+0800)
 - LLM: mock (offline heuristics); models fast=`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, main=`nvidia/nemotron-3-super-120b-a12b`, deep=`nvidia/Nemotron-3-Ultra-550b-a55b`
 - Search: mock (labelled samples)
 - Modes seen in traces: mock
@@ -14,12 +14,12 @@
 | client_portal_web | 14/14 | web | 92 | 4 | 0.78 | 1 | $12,000 | end of January | $85/h | $7,820 | yes | 1 ms |
 | n8n_leads | 14/14 | automation | 31 | 4 | 0.78 | 2 | $800 | - | $75/h | $2,330 | yes | 1 ms |
 | bakery_logo | 15/15 | design | 44 | 6 | 0.72 | 3 | - | - | $70/h | $3,080 | yes | 0 ms |
-| price_scraper | 13/13 | data | 54 | 5 | 0.66 | 3 | - | - | $65/h | $3,530 | yes | 0 ms |
+| price_scraper | 13/13 | data | 54 | 5 | 0.66 | 3 | - | - | $65/h | $3,530 | yes | 1 ms |
 | vague_uber | 14/14 | web | 61 | 3 | 0.42 | 6 | - | - | $85/h | $5,190 | yes | 0 ms |
-| camping_marketplace | 15/15 | web | 163 | 5 | 0.80 | 2 | $3,000 | asap | $85/h | $13,860 | yes | 0 ms |
+| camping_marketplace | 15/15 | web | 163 | 5 | 0.80 | 2 | $3,000 | asap | $85/h | $13,860 | yes | 1 ms |
 | cafe_spanish | 16/16 | mobile | 112 | 4 | 0.73 | 3 | $5,000 | - | $82/h | $9,200 | yes | 0 ms |
 | dental_ai_receptionist | 15/15 | web | 96 | 4 | 0.66 | 2 | - | 6 weeks | $85/h | $8,160 | yes | 0 ms |
-| fitness_flutter | 14/14 | mobile | 133 | 5 | 0.86 | 1 | $20,000 | Q2 | $82/h | $10,920 | yes | 1 ms |
+| fitness_flutter | 14/14 | mobile | 133 | 5 | 0.86 | 1 | $20,000 | Q2 | $82/h | $10,920 | yes | 0 ms |
 | yoga_wordpress | 14/14 | web | 56 | 3 | 0.61 | 1 | $1,500 | November 15 | $85/h | $4,760 | yes | 0 ms |
 
 ## Pass rate by check
