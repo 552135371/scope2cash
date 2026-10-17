@@ -76,12 +76,15 @@ The UI's **Agent trace** shows, for every step, the tier and model, live/mock/fa
 - **Sandbox demo payment.** *⏩ client pays (sandbox card)* pays a real sandbox order with a PayPal sandbox test card, so the demo shows a real PAID transition without a buyer login. It is refused in live mode.
 - Verified against the real sandbox on 2026-10-17: order → `PAYER_ACTION_REQUIRED`, capture before approval → `422 ORDER_NOT_APPROVED`, test-card order → `COMPLETED`, invoice → `MARKED_AS_PAID`.
 
-### Pipeline view (AG Grid Community)
-`app/static/pipeline.js` uses [AG Grid Community](https://www.ag-grid.com/) 36.2.0 (MIT), version-pinned from the jsDelivr CDN.
-- **Scoreboard:** collected, awaiting, overdue and drafts.
-- **Table:** a Quartz theme in PayPal blue, quick search, unpaid/overdue/paid/draft filters, pinned client and action columns, a totals row, late-row highlighting, and inline actions (approve & send, draft a reminder, simulate payment).
-- **Side panels:** the agent and the webhook feed.
-- **Load sample clients** adds 8 clearly labelled fictional invoices. If the CDN can't be reached, the same columns render as a plain table.
+### Pipeline dashboard (AG Grid Community + AG Charts Community)
+`app/static/pipeline.js` uses [AG Grid Community](https://www.ag-grid.com/) 36.2.0 and [AG Charts Community](https://www.ag-grid.com/charts/) 14.2.0 (both MIT), version-pinned from the jsDelivr CDN. There is no build step, and no Enterprise or AG Studio feature is used.
+- **KPI tiles:** collected, awaiting, overdue, drafts, and the agent nudges waiting for approval.
+- **Cash flow by week (AG Charts):** stacked bars of collected (by paid date), expected, overdue and drafts (by due date). Drafts are hidden by default; the legend toggles them. Clicking a bar filters the grid to exactly the invoices behind it. The series comes from `POST /api/pipeline/cashflow` with the ids the grid currently shows, so the chart follows every grid filter.
+- **Who still owes what:** a second AG Grid, one row per client (`GET /api/pipeline/clients`). It shows a paid-so-far bar, what the client still owes, the oldest lateness and a friendly tone label. Click a client to filter the grid.
+- **Grid:** a Quartz theme in PayPal blue, quick search, unpaid/overdue/paid/draft filters, pinned client and action columns, and a totals row that follows the filter. Also late-row highlighting and inline actions (approve & send, draft a reminder, simulate payment), plus a **Collections agent** column where the agent's queued proposal for that invoice appears with Approve / ✕. Nothing is sent without that click.
+- **Saved views and CSV:** built-in views ("Chase list · latest first", …) plus your own, saved in localStorage. CSV export uses `exportDataAsCsv` and covers the rows on screen. Below 820 px the grid drops secondary columns and unpins.
+- **Load sample clients** adds 8 clearly labelled fictional invoices. If the CDN can't be reached, the grid renders as a plain table and the chart panel says so.
+- Browser check and screenshots: `S2C_URL=http://localhost:8000/ python scripts/screenshots_aggrid.py screens/aggrid`.
 
 ### Receiving real sandbox webhooks
 1. Deploy the app somewhere with a public HTTPS URL (see Deploy).
@@ -148,7 +151,7 @@ uvicorn app.main:app --port 8765
 
 ## Quality: evals and tests
 ```bash
-python -m pytest -q                       # 70 tests: flow, HTTP contracts, webhooks, agent, UI contract (no network)
+python -m pytest -q                       # 86 tests: flow, HTTP contracts, webhooks, agent, dashboard roll-ups (no network)
 python scripts/eval_agent.py              # collections agent: 11 instruction -> exact-proposal cases
 python scripts/eval.py                    # eval set, mock mode -> eval/results.md
 python scripts/eval.py --set holdout      # 4 hold-out briefs never used to tune the heuristics
@@ -221,7 +224,8 @@ app/
   webhooks.py          verified PayPal webhooks: dedupe, ordering, re-fetch, mock signer
   paypal_agent.py      collections agent: PayPal Agent Toolkit tools + LLM tool calling + approvals
   demo_data.py         labelled sample clients for the pipeline
-  static/              single-page UI (no build step); pipeline.js = AG Grid pipeline + agent panel
+  pipeline_stats.py    read-only dashboard roll-ups: weekly cash flow, per-client scoreboard
+  static/              single-page UI (no build step); pipeline.js = AG Grid + AG Charts dashboard + agent panel
 eval/briefs.json       eval set;  eval/results.md  latest scorecard
 ```
 
@@ -229,4 +233,4 @@ eval/briefs.json       eval set;  eval/results.md  latest scorecard
 Scope2Cash was designed and built by Wang Huilin in October 2026. **AI coding assistants were used heavily**, for writing code, tests, eval cases and documentation. The product decisions, the human-in-the-loop design, the review of the generated code, and every claim in this README (checked against the tests, the eval results in `eval/`, and real PayPal sandbox runs) are the author's responsibility. No real customer data is used; all sample clients are fictional and labelled as such.
 
 ## License
-[MIT](LICENSE) © 2026 Wang Huilin. Uses the PayPal Agent Toolkit (Apache-2.0) and AG Grid Community (MIT).
+[MIT](LICENSE) © 2026 Wang Huilin. Uses the PayPal Agent Toolkit (Apache-2.0), AG Grid Community and AG Charts Community (MIT).

@@ -54,11 +54,27 @@
 <div class="wide">
     <section class="card" id="pipe">
       <div class="card-head"><h2>Pipeline · every client, every milestone</h2>
-        <div class="row" style="margin:0"><span class="chip" id="grid-engine">AG Grid</span><button class="ghost tiny" id="seed">Load sample clients</button><button class="ghost tiny" id="pipe-refresh">Refresh</button></div></div>
-      <p class="muted small">Every PayPal invoice you've drafted, across clients. Statuses update from verified PayPal webhooks; the collections agent works this table through the PayPal Agent Toolkit and asks before it acts.</p>
+        <div class="row" style="margin:0"><span class="chip" id="grid-engine">AG Grid</span><span class="chip" id="chart-engine">AG Charts</span><button class="ghost tiny" id="seed">Load sample clients</button><button class="ghost tiny" id="pipe-refresh">Refresh</button></div></div>
+      <p class="muted small">Every PayPal invoice you've drafted, across clients. Statuses update from verified PayPal webhooks; the collections agent works this table through the PayPal Agent Toolkit and asks before it acts. Click a bar or a client to filter the grid.</p>
       <div class="kpis" id="kpis"></div>
-      <div class="row between" style="margin-top:10px"><input id="qf" placeholder="Search client, invoice, milestone…" style="max-width:320px">
-        <div class="seg" id="pipe-filter"></div></div>
+      <div class="dash">
+        <div class="panel"><div class="panel-head"><h5>CASH FLOW BY WEEK</h5><span class="muted small" id="cash-note"></span></div>
+          <div id="cashchart" class="chart" role="img" aria-label="Weekly cash flow: collected, expected, overdue and draft invoice amounts"></div></div>
+        <div class="panel"><div class="panel-head"><h5>WHO STILL OWES WHAT</h5><span class="muted small">friendly scoreboard · click a client</span></div>
+          <div id="board" class="board-wrap"></div></div>
+      </div>
+      <div class="toolbar">
+        <input id="qf" placeholder="Search client, invoice, milestone…">
+        <div class="seg" id="pipe-filter"></div>
+        <div class="active-filters" id="active-filters"></div>
+        <div class="tools">
+          <select id="views" aria-label="Saved views"></select>
+          <button class="ghost tiny hidden" id="view-del" title="Delete this saved view">Delete view</button>
+          <button class="ghost tiny" id="view-save">Save view</button>
+          <form id="view-form" class="hidden"><input id="view-name" placeholder="Name this view" maxlength="40"><button class="pp tiny">Save</button></form>
+          <button class="ghost tiny" id="csv" title="Export the rows the grid shows (current filter and sort)">⬇ CSV</button>
+        </div>
+      </div>
       <div id="grid" class="grid-wrap"></div>
       <div class="grid2 pipe-bottom">
         <div class="copilot">
@@ -76,6 +92,8 @@
 <div class="toast hidden" id="toast"></div>
 <!-- AG Grid Community (MIT licence), pinned. If the CDN is unreachable the pipeline falls back to a plain table. -->
 <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@36.2.0/dist/ag-grid-community.min.js"></script>
+<!-- AG Charts Community (MIT licence), pinned to the version AG Grid 36.2 ships types for. Optional: without it the chart panel says so. -->
+<script src="https://cdn.jsdelivr.net/npm/ag-charts-community@14.2.0/dist/umd/ag-charts-community.min.js"></script>
 <script src="/static/app.js"></script>
 <script src="/static/pipeline.js"></script>
 </body>

@@ -122,3 +122,30 @@ tfoot td{font-weight:800;font-size:15px;border-bottom:0}
   border-radius: 10px; background: #f2f7ff; border: 1px dashed #9cc2f5; }
 .quickstart button { white-space: nowrap; }
 .slowhint { display: block; font-size: 11px; opacity: .8; font-weight: 400; }
+
+/* v0.4 pipeline dashboard: cash-flow chart, client scoreboard, toolbar (views, CSV), inline agent nudges, responsive */
+.dash{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;margin-top:14px}
+.panel{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fff;min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}.panel-head h5{margin:0;font-size:12px;letter-spacing:.05em;color:var(--muted)}
+.chart{height:270px;margin-top:6px}
+.board-wrap{margin-top:8px}.board-wrap.tall{height:300px}
+.board-wrap .ag-row{cursor:pointer}.ag-row.row-picked{background:#eaf3ff!important;box-shadow:inset 3px 0 0 var(--pp)}
+.paycell{display:flex;flex-direction:column;justify-content:center;height:100%;gap:3px;line-height:1.1}.paycell small{color:var(--muted);font-size:11px}
+.paybar{height:7px;border-radius:99px;background:#eef1f7;overflow:hidden}.paybar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#1f9d55,#4cc27e)}
+.mood{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;background:#eef1f7;color:#4a5268}
+.mood.m-ok{background:#e3f6ea;color:var(--ok)}.mood.m-pp{background:#e3efff;color:var(--pp-d)}.mood.m-mild{background:#fff3d6;color:#8a5a00}
+.mood.m-warn{background:#ffe9d6;color:#a2470d}.mood.m-bad{background:#fde8e8;color:var(--bad)}
+.chip.waiting{background:#e3efff;color:var(--pp-d);font-weight:700}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}.toolbar>#qf{max-width:280px;padding:9px 12px}
+.toolbar .tools{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}.toolbar select{width:auto;padding:7px 10px;font-size:13px}
+#view-form{display:flex;gap:6px}#view-form input{width:160px;padding:6px 10px;font-size:13px}
+.active-filters{display:flex;gap:6px;flex-wrap:wrap}.fchip{font-size:12px;padding:5px 10px;border-radius:99px;background:#e3efff;color:var(--pp-d)}
+.nudge{display:flex;gap:6px;align-items:center;height:100%;min-width:0}.nudge-txt{display:flex;flex-direction:column;line-height:1.2;min-width:0;flex:1}
+.nudge-txt b{font-size:12px;color:var(--pp-d);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nudge-txt small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nudge.cancel .nudge-txt b{color:var(--bad)}.agentbtn{white-space:nowrap}
+.ag-row.row-nudge{background:#f5f9ff}
+@media (max-width:1100px){.dash{grid-template-columns:1fr}.toolbar .tools{margin-left:0}}
+@media (max-width:640px){.wide{padding:0 12px 24px}.card{padding:16px}.kpis{grid-template-columns:1fr 1fr}.kpi b{font-size:18px}
+  .card-head{flex-wrap:wrap}.toolbar>#qf{max-width:none}.seg{overflow-x:auto;max-width:100%}.chart{height:240px}}
+.cell2.r{align-items:flex-end}.chip.waiting{white-space:nowrap}
+.grid-wrap{height:548px}

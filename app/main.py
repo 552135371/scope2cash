@@ -8,12 +8,12 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import agent, config, guard, paypal_agent, store, webhooks
+from . import agent, config, guard, paypal_agent, pipeline_stats, store, webhooks
 from .checkout_routes import router as checkout_router
 from .adapters import llm as llm_mod
 from .adapters.http import AdapterError
 from .adapters.payments import client_for, get_payments, MockPayments
-from .models import (AgentAction, AgentRequest, AgentResponse, Invoice, InvoiceDraftRequest, InvoiceDraftResponse,
+from .models import (AgentAction, AgentRequest, AgentResponse, CashflowRequest, Invoice, InvoiceDraftRequest, InvoiceDraftResponse,
                      PricingRequest, PricingResponse, QuoteRequest, QuoteResponse, ReminderResponse, ReminderSendResponse,
                      SampleProjectResponse, ScopeRequest, ScopeResponse, TraceStep, WebhookResult)
 
@@ -262,6 +262,23 @@ async def paypal_webhook(request: Request):
 @app.get("/api/webhooks/events")
 def webhook_events():
     return store.webhook_events()
+
+
+# ---- pipeline dashboard roll-ups (read-only, stored data only: no PayPal or LLM calls) ----
+@app.get("/api/pipeline/clients")
+def pipeline_clients():
+    """'Who still owes what' scoreboard: one row per client, attention-first."""
+    return pipeline_stats.client_scoreboard(store.all_invoices(), store.actions("pending", limit=500))
+
+
+@app.post("/api/pipeline/cashflow")
+def pipeline_cashflow(req: CashflowRequest):
+    """Weekly collected / expected / overdue / drafts series for the rows the grid currently shows."""
+    invs = store.all_invoices()
+    if req.invoice_ids is not None:
+        wanted = set(req.invoice_ids[:2000])
+        invs = [i for i in invs if i.id in wanted]
+    return pipeline_stats.cashflow(invs)
 
 
 # ---- collections agent (PayPal Agent Toolkit) ----

@@ -271,6 +271,10 @@ class AgentAction(BaseModel):
     decided_at: str = ""
 
 
+class CashflowRequest(BaseModel):
+    invoice_ids: Optional[List[str]] = None  # the rows the grid currently shows; None = every invoice
+
+
 class AgentResponse(BaseModel):
     answer: str
     tool_calls: List[ToolCallRecord]
