@@ -119,7 +119,7 @@ uvicorn app.main:app --port 8765
 
 ## Quality: evals and tests
 ```bash
-python -m pytest -q                       # 52 tests: flow, HTTP contracts, webhooks, agent, UI contract (no network)
+python -m pytest -q                       # 53 tests: flow, HTTP contracts, webhooks, agent, UI contract (no network)
 python scripts/eval_agent.py              # collections agent: 11 instruction -> exact-proposal cases
 python scripts/eval.py                    # eval set, mock mode -> eval/results.md
 python scripts/eval.py --set holdout      # 4 hold-out briefs never used to tune the heuristics

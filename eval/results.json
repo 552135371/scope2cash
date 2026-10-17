@@ -30,7 +30,7 @@
       "mock"
     ],
     "tokens": 0,
-    "ms": 10
+    "ms": 16
   },
   "cases": [
     {
@@ -86,7 +86,7 @@
         "mock"
       ],
       "tokens": 0,
-      "ms": 7,
+      "ms": 9,
       "warnings": [],
       "error": ""
     },
@@ -306,7 +306,7 @@
         "mock"
       ],
       "tokens": 0,
-      "ms": 0,
+      "ms": 1,
       "warnings": [],
       "error": ""
     },
@@ -477,7 +477,7 @@
         "mock"
       ],
       "tokens": 0,
-      "ms": 0,
+      "ms": 1,
       "warnings": [],
       "error": ""
     },
@@ -534,7 +534,7 @@
         "mock"
       ],
       "tokens": 0,
-      "ms": 0,
+      "ms": 1,
       "warnings": [],
       "error": ""
     },
@@ -589,7 +589,7 @@
         "mock"
       ],
       "tokens": 0,
-      "ms": 0,
+      "ms": 1,
       "warnings": [],
       "error": ""
     },

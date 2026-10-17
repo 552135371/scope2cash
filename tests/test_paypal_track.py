@@ -309,6 +309,39 @@ def test_agent_live_llm_failure_falls_back_to_planner(live):
     assert len(out["proposals"]) == 1
 
 
+def test_agent_live_mode_sees_paypal_and_sample_invoices_and_routes_writes(live):
+    """With PayPal keys set, labelled SAMPLE (mock) invoices stay visible to the agent; their writes never hit PayPal."""
+    real = _live_invoice(days_late=6)
+    c = TestClient(app)
+    c.post("/api/demo/seed")
+    pp = []
+
+    def handler(req: httpx.Request):
+        u = str(req.url)
+        if u.startswith(NEBIUS):
+            return httpx.Response(503, json={"detail": "overloaded"})  # use the deterministic planner
+        pp.append(req)
+        if u == f"{PP}/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "A21AA-test", "expires_in": 32400})
+        if req.method == "GET" and req.url.path == "/v2/invoicing/invoices":
+            return httpx.Response(200, json={"total_items": 1, "items": [_pp_invoice(real.id, "UNPAID", real.due_date)]})
+        if req.method == "GET" and req.url.path == f"/v2/invoicing/invoices/{real.id}":
+            return httpx.Response(200, json=_pp_invoice(real.id, "UNPAID", real.due_date))
+        if req.method == "POST" and req.url.path == f"/v2/invoicing/invoices/{real.id}/remind":
+            return httpx.Response(204)
+        raise AssertionError(f"unexpected {req.method} {u}")
+
+    live(handler)
+    out = c.post("/api/agent/collections", json={"instruction": "Nudge everyone more than 3 days late"}).json()
+    got = {p["invoice_number"]: p for p in out["proposals"]}
+    assert set(got) == {real.number, "S2C-SAMPLE-02", "S2C-SAMPLE-07"}
+    for p in out["proposals"]:
+        assert c.post(f"/api/agent/actions/{p['id']}/approve").json()["action"]["status"] == "executed"
+    reminds = [q.url.path for q in pp if q.url.path.endswith("/remind")]
+    assert reminds == [f"/v2/invoicing/invoices/{real.id}/remind"]  # only the real sandbox invoice went to PayPal
+    assert all(store.get(got[n]["invoice_id"]).reminded_at for n in ("S2C-SAMPLE-02", "S2C-SAMPLE-07"))
+
+
 # ================================================================ pipeline
 def test_pipeline_accumulates_projects_and_reseed_replaces_samples():
     c = TestClient(app)

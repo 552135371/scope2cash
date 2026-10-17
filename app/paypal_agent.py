@@ -24,7 +24,7 @@ import uuid
 from datetime import date
 from importlib import metadata
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from . import config, store
 from .adapters import llm as llm_mod
@@ -156,8 +156,45 @@ class MockToolkitClient:
         raise AdapterError("PayPal (mock)", "DELETE not supported", status=400)
 
 
+class HybridToolkitClient:
+    """Live mode with labelled SAMPLE/mock invoices in the pipeline: PayPal answers for its invoices, the store for mock ones.
+
+    Without this, sample clients would be invisible to the agent once PayPal keys are set, because PayPal's
+    list endpoint only knows real sandbox invoices."""
+    mode = "live"
+
+    def __init__(self) -> None:
+        self.live, self.mock = LiveToolkitClient(), MockToolkitClient()
+
+    def _for(self, uri: str):
+        m = _PATH_ID.match(urlparse(uri).path)
+        inv = store.get(m.group(1)) if m else None
+        return self.mock if inv is not None and inv.provider == "mock" else self.live
+
+    def get(self, uri: str) -> Any:
+        u = urlparse(uri)
+        if u.path != "/v2/invoicing/invoices":
+            return self._for(uri).get(uri)
+        out = self.live.get(uri) or {}
+        page = (parse_qs(u.query).get("page") or ["1"])[0]
+        if str(page) == "1":
+            local = [to_paypal_invoice(i) for i in store.all_invoices() if i.provider == "mock"]
+            out = {**out, "items": list(out.get("items") or []) + local,
+                   "total_items": int(out.get("total_items") or 0) + len(local)}
+        return out
+
+    def post(self, uri: str, payload: Any) -> Any:
+        return self._for(uri).post(uri, payload)
+
+    def put(self, uri, payload, headers=None):  # pragma: no cover - no allowed tool uses it
+        return self._for(uri).put(uri, payload, headers)
+
+    def delete(self, uri):  # pragma: no cover
+        return self._for(uri).delete(uri)
+
+
 def reader_client():
-    return LiveToolkitClient() if config.get_settings().payments_live else MockToolkitClient()
+    return HybridToolkitClient() if config.get_settings().payments_live else MockToolkitClient()
 
 
 def client_for_invoice(inv: Invoice):
@@ -381,7 +418,7 @@ _DAYS = re.compile(r"(\d+)\s*\+?\s*(?:days?|d\b)", re.I)
 def _mock_plan(instruction: str, run: Run) -> str:
     """Deterministic planner that drives the same toolkit tools the LLM would (used offline and as fallback)."""
     s = config.get_settings()
-    client = MockToolkitClient() if not s.payments_live else LiveToolkitClient()
+    client = reader_client()
     listing = json.loads(compact_list(_dispatch_raw(client, "list_invoices", {"page": 1, "page_size": 100}, run)))
     known = {i.id: i for i in store.all_invoices()}
     items = [it for it in listing["items"] if it["id"] in known]

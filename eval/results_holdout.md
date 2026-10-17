@@ -1,6 +1,6 @@
 # Scope2Cash eval results: hold-out set (eval/briefs_holdout.json, never used to tune the heuristics)
 
-- Run: 2026-10-17 18:17 (UTC+0800)
+- Run: 2026-10-17 18:25 (UTC+0800)
 - LLM: mock (offline heuristics); models fast=`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, main=`nvidia/nemotron-3-super-120b-a12b`, deep=`nvidia/Nemotron-3-Ultra-550b-a55b`
 - Search: mock (labelled samples)
 - Modes seen in traces: mock
