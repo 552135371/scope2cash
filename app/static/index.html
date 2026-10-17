@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scope2Cash — from client brief to paid invoice</title>
+<link rel="stylesheet" href="/static/styles.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💸</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">S2C</span><div><b>Scope2Cash</b><small>Brief → scope → quote → paid</small></div></div>
+  <div class="badges" id="badges"></div>
+</header>
+
+<div class="layout">
+  <nav class="stepper" id="stepper">
+    <div class="step active" data-step="1"><span>1</span><div><b>Client brief</b><small>Paste the request</small></div></div>
+    <div class="step" data-step="2"><span>2</span><div><b>Scope</b><small>Milestones & risks</small></div></div>
+    <div class="step" data-step="3"><span>3</span><div><b>Market price</b><small>Tavily research</small></div></div>
+    <div class="step" data-step="4"><span>4</span><div><b>Quote</b><small>Proposal & terms</small></div></div>
+    <div class="step" data-step="5"><span>5</span><div><b>Get paid</b><small>PayPal invoices</small></div></div>
+    <div class="stepper-foot">Human-in-the-loop: nothing is sent to a client until you approve it.</div>
+  </nav>
+
+  <main id="main">
+    <section class="card" id="s1">
+      <div class="card-head"><h2>1 · Client brief</h2><button class="ghost" id="sample">Use sample brief</button></div>
+      <p class="muted">Paste an email, chat thread, or Upwork job post. The agent turns it into a fixed scope you can quote.</p>
+      <textarea id="brief" rows="8" placeholder="e.g. Hi! I'm Sarah from Bloom Pilates. We need an iOS app where members can book classes..."></textarea>
+      <div class="row end"><button class="primary" id="go-scope">Analyze brief <span class="kbd">⌘↵</span></button></div>
+    </section>
+
+    <section class="card hidden" id="s2"></section>
+    <section class="card hidden" id="s3"></section>
+    <section class="card hidden" id="s4"></section>
+    <section class="card hidden" id="s5"></section>
+  </main>
+
+  <aside class="trace">
+    <h3>Agent trace</h3>
+    <p class="muted small">Every step and the Nemotron model tier it was routed to.</p>
+    <ol id="trace"></ol>
+    <div class="totals hidden" id="totals"></div>
+  </aside>
+</div>
+
+<div class="modal hidden" id="modal"><div class="modal-card" id="modal-card"></div></div>
+<div class="toast hidden" id="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
