@@ -30,7 +30,7 @@
       "mock"
     ],
     "tokens": 0,
-    "ms": 11
+    "ms": 10
   },
   "cases": [
     {
@@ -306,7 +306,7 @@
         "mock"
       ],
       "tokens": 0,
-      "ms": 1,
+      "ms": 0,
       "warnings": [],
       "error": ""
     },
