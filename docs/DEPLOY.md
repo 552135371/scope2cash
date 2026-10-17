@@ -15,6 +15,7 @@ Everything here uses the **PayPal sandbox**. No real money moves.
 | `SCOPE2CASH_DEMO_CLIENT_EMAIL` | recommended | The sandbox **personal** (buyer) email, prefilled as the client |
 | `SCOPE2CASH_MOCK_WEBHOOK_SECRET` | yes | Random (the blueprint generates it) |
 | `SCOPE2CASH_PUBLIC_DEMO`, `SCOPE2CASH_DAILY_LIVE_CAP`, `SCOPE2CASH_RECIPIENT_DOMAINS` | blueprint defaults | `1`, `150`, `example.com` (abuse limits for a public URL) |
+| `SCOPE2CASH_AUTOSEED` | optional | defaults to on in public-demo mode: re-adds the sample clients after a free-tier restart wipes SQLite; `0` turns it off |
 | `TAVILY_API_KEY` | optional | Live market-rate research; without it, labelled sample rates are used |
 | `SCOPE2CASH_DB` | blueprint default | `/tmp/scope2cash.db` (the free tier's disk is ephemeral) |
 

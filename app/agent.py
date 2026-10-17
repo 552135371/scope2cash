@@ -151,8 +151,9 @@ def _cut_option(scope: Scope, items: List[LineItem]) -> Optional[Tuple[str, floa
     return c.milestone, c.amount
 
 
-def build_quote(scope: Scope, pricing: PricingReference, hourly_rate: float | None, position: str) -> Tuple[Quote, List[TraceStep]]:
-    s = config.get_settings()
+def price_items(scope: Scope, pricing: PricingReference, hourly_rate: float | None,
+                position: str) -> Tuple[float, List[LineItem], float, str, Optional[Tuple[str, float]]]:
+    """Deterministic part of the quote: rate, milestone line items with due dates from today, total, budget note."""
     lo, hi = pricing.hourly_low, pricing.hourly_high
     rate = round(hourly_rate or {"value": lo + (hi - lo) * 0.2, "market": (lo + hi) / 2, "premium": lo + (hi - lo) * 0.85}[position])
     start = date.today()
@@ -175,6 +176,19 @@ def build_quote(scope: Scope, pricing: PricingReference, hourly_rate: float | No
                 budget_note += f" Dropping \"{cut[0]}\" brings it to ${total - cut[1]:,.0f}."
         else:
             budget_note = f"Quote fits the client's stated budget (${scope.client_budget:,.0f})."
+    return rate, items, total, budget_note, cut
+
+
+QUOTE_TERMS = ["Each milestone is invoiced via PayPal when it starts and is due on its milestone date",
+               "Work on a milestone begins once its invoice is paid",
+               "2 revision rounds per milestone; extra changes billed at the hourly rate",
+               "Source files and IP transfer to the client on final payment"]
+
+
+def build_quote(scope: Scope, pricing: PricingReference, hourly_rate: float | None, position: str) -> Tuple[Quote, List[TraceStep]]:
+    s = config.get_settings()
+    rate, items, total, budget_note, cut = price_items(scope, pricing, hourly_rate, position)
+    gap = (total - scope.client_budget) if scope.client_budget else None
     llm = get_llm()
     system = ("You write concise, warm client proposals for an independent freelancer. Return JSON {\"cover_message\": str} "
               "(<= 130 words, plain text, mention milestone-based PayPal invoicing, ask the single most important open "
@@ -193,10 +207,7 @@ def build_quote(scope: Scope, pricing: PricingReference, hourly_rate: float | No
                            validate=lambda d: _need(d.get("negotiation_tips")))
     tips = [str(t) for t in r2.data.get("negotiation_tips", [])][:4]
     quote = Quote(currency=s.currency, hourly_rate=rate, total=total, line_items=items, budget_note=budget_note,
-                  terms=["Each milestone is invoiced via PayPal when it starts and is due on its milestone date",
-                         "Work on a milestone begins once its invoice is paid",
-                         "2 revision rounds per milestone; extra changes billed at the hourly rate",
-                         "Source files and IP transfer to the client on final payment"],
+                  terms=list(QUOTE_TERMS),
                   cover_message=str(r1.data.get("cover_message", "")), negotiation_tips=tips)
     return quote, [_trace("Draft proposal message", r1), _trace("Negotiation coaching", r2, f"{len(tips)} tips")]
 

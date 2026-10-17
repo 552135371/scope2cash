@@ -1,0 +1,218 @@
+{
+  "recorded_at": "2026-10-17T16:03:39+00:00",
+  "brief_id": "pilates_ios",
+  "brief": "Hi! I'm Sarah from Bloom Pilates Studio in Austin. We want an iOS app for our members.\n\nMembers should be able to sign up, see the weekly class schedule, book or cancel a class, and get reminder notifications an hour before class. We'd also like to sell 10-class packs and a monthly membership inside the app (subscription).\n\nOn our side we need a simple admin dashboard to manage classes, instructors and see bookings. Bonus: an AI assistant that answers common questions (parking, what to bring, cancellation policy).\n\nWe'd love to launch before our spring promo in March. Budget is flexible but we're a small studio. Can you send a proposal?",
+  "llm": {
+    "provider": "DeepSeek API",
+    "models": {
+      "fast": "deepseek-flash",
+      "main": "deepseek-flash",
+      "deep": "deepseek-v4-pro"
+    }
+  },
+  "search": "labelled sample sources (no Tavily key)",
+  "modes": [
+    "live",
+    "mock"
+  ],
+  "scope": {
+    "project_title": "Bloom Pilates Studio Member iOS App",
+    "client_name": "Bloom Pilates Studio",
+    "summary": "A native iOS app for Bloom Pilates members to sign up, view the weekly schedule, book or cancel classes, receive one-hour reminders, and purchase class packs or a monthly membership. A lightweight admin dashboard will let studio staff manage classes, instructors and bookings; the AI assistant is treated as an optional phase-2 item.",
+    "project_type": "ios",
+    "milestones": [
+      {
+        "title": "Discovery & technical planning",
+        "deliverables": [
+          "Requirements and scope document",
+          "Member and admin user flows",
+          "Prioritized MVP backlog",
+          "Technical architecture and Apple In-App Purchase approach",
+          "Launch checklist and assumptions log"
+        ],
+        "est_hours": 12.0,
+        "weeks": 1.0
+      },
+      {
+        "title": "UX/UI design & clickable prototype",
+        "deliverables": [
+          "iOS screen designs for onboarding, schedule, booking, pack purchase and account",
+          "Admin dashboard wireframes",
+          "Clickable prototype for key member flows",
+          "Brand asset requirements list"
+        ],
+        "est_hours": 28.0,
+        "weeks": 2.0
+      },
+      {
+        "title": "Backend & admin dashboard",
+        "deliverables": [
+          "Database and API for members, classes, instructors, bookings and entitlements",
+          "Lightweight web admin dashboard to manage classes, instructors and view bookings",
+          "Authentication and role-based admin access",
+          "Staging environment and seed data"
+        ],
+        "est_hours": 80.0,
+        "weeks": 4.0
+      },
+      {
+        "title": "iOS app core",
+        "deliverables": [
+          "Native iOS app with sign-up/login and member profile",
+          "Weekly class schedule and class detail screens",
+          "Book and cancel class flows with capacity handling",
+          "Push notification setup for one-hour class reminders",
+          "TestFlight build for review"
+        ],
+        "est_hours": 130.0,
+        "weeks": 5.0
+      },
+      {
+        "title": "Payments, subscriptions & entitlements",
+        "deliverables": [
+          "Apple In-App Purchase setup for 10-class packs and monthly membership",
+          "Receipt validation and entitlement tracking",
+          "Purchase history and membership status in the app",
+          "Restore purchases flow"
+        ],
+        "est_hours": 40.0,
+        "weeks": 2.0
+      },
+      {
+        "title": "QA, App Store submission & handover",
+        "deliverables": [
+          "End-to-end QA and bug fixes",
+          "App Store submission support",
+          "Admin dashboard handover session",
+          "Technical documentation and credentials handover"
+        ],
+        "est_hours": 30.0,
+        "weeks": 1.0
+      }
+    ],
+    "assumptions": [
+      "Phase 1 is an iOS-only native app built with SwiftUI; Android and web member portals are out of scope.",
+      "The admin dashboard is a lightweight web tool for studio staff, not a full studio-management or POS system.",
+      "Class packs and monthly memberships are sold as Apple In-App Purchases, with Apple's commission applying to in-app digital purchases.",
+      "Push reminders are sent one hour before class using standard Apple Push Notification service; SMS/email reminders are out of scope.",
+      "The AI assistant is optional phase 2 and is not included in this estimate.",
+      "Bloom Pilates Studio will provide branding assets, class schedule/content, pricing, cancellation policy and Apple Developer account access.",
+      "A single studio location and one admin role level are assumed for phase 1."
+    ],
+    "risks": [
+      "Apple App Store review and In-App Purchase compliance can add iteration time, especially for subscriptions and class packs.",
+      "Booking and cancellation rules around capacity, waitlists and late cancellation fees are not defined and could change the build.",
+      "The admin dashboard scope can expand quickly if staff expect instructor payroll, attendance tracking or reporting.",
+      "Push notification delivery depends on member permission and device settings.",
+      "Spring promo timing may be at risk if Apple review or payment product setup takes longer than expected."
+    ],
+    "open_questions": [
+      "What are the exact prices and terms for the 10-class pack and monthly membership, including expiration and cancellation rules?",
+      "How many classes per week, and what is the class capacity and waitlist policy?",
+      "What is the cancellation policy and cutoff window for cancelling a booked class?",
+      "Do members need to choose a specific instructor or class type when booking?",
+      "Should the admin dashboard support recurring weekly schedules, one-off classes and instructor substitutions?",
+      "Are you currently using any booking, POS or CRM system that must be integrated or migrated from?",
+      "Who will manage class content and pricing after launch?",
+      "Do you have an Apple Developer account and App Store Connect access ready?",
+      "Should the AI assistant be included in phase 1 or scoped as a separate phase 2 proposal?",
+      "What branding assets, photos and copy are already available?"
+    ],
+    "confidence": 0.7,
+    "client_budget": null,
+    "deadline": "Before March 2027 spring promo",
+    "language": "en",
+    "contact_name": null
+  },
+  "pricing": {
+    "currency": "USD",
+    "low": 12800.0,
+    "median": 24000.0,
+    "high": 35200.0,
+    "hourly_low": 40.0,
+    "hourly_high": 110.0,
+    "rationale": "Marketplace mid-level mobile freelancers quote $40-$75/h [3], while independent iOS developers typically bill $55-$110/h with SwiftUI specialists at the upper end [1]. Using the broader freelance range gives $40-$110/h for this iOS project.",
+    "sources": [
+      {
+        "title": "Sample: iOS freelance rate survey (mock)",
+        "url": "https://example.com/mock/ios/1",
+        "snippet": "Independent iOS developers typically bill $55 to $110 per hour; SwiftUI specialists sit at the upper end.",
+        "score": null
+      },
+      {
+        "title": "Sample: app development cost guide (mock)",
+        "url": "https://example.com/mock/ios/2",
+        "snippet": "A small native iOS MVP with accounts and payments commonly lands between $8,000 and $25,000.",
+        "score": null
+      },
+      {
+        "title": "Sample: marketplace price guide (mock)",
+        "url": "https://example.com/mock/ios/3",
+        "snippet": "Mid-level mobile freelancers on marketplaces quote $40-$75/h; agencies quote 2-3x that.",
+        "score": null
+      }
+    ],
+    "mock": true,
+    "grounded": true,
+    "evidence": [
+      "$40/h",
+      "$55/h",
+      "$75/h",
+      "$110/h",
+      "$8,000",
+      "$25,000"
+    ],
+    "queries": [
+      "freelance iOS developer hourly rate 2026",
+      "freelance iOS app fixed price cost 2026: ux/ui design & clickable prototype, backend & admin dashboard, ios app core"
+    ]
+  },
+  "cover_message": "Hi Bloom Pilates Studio team,\n\nThank you for the detailed brief — a native iOS member app plus a lightweight staff dashboard is a great fit, and I'd be glad to build it. I'd structure the work in milestones (discovery, design, backend/admin, iOS core, payments, QA and App Store handover), so you can review progress and approve each stage before the next begins. Invoicing is per milestone via PayPal, with hours billed at $75/hr, total $24,000.\n\nOne open question matters most before we start: what are the exact prices, expiration and cancellation terms for the 10-class pack and monthly membership, since these shape the In-App Purchase setup?\n\nWarm regards,\nHuilin",
+  "negotiation_tips": [
+    "Hold total at 24000 and rate at 75; if asked to lower, cut from the 6000 admin dashboard scope (e.g., defer payroll/attendance/reporting) rather than discounting.",
+    "Use the March 2027 spring promo deadline: propose a phased start with 900 discovery + 2100 design, then lock scope before 9750 iOS app core to reduce rework risk.",
+    "Offer a reduced-scope option near 12800 market low for MVP (core iOS + payments 3000), but keep 24000 full-scope price with 35200 high as proof of value."
+  ],
+  "recorded_trace": [
+    {
+      "step": "Extract scope & milestones",
+      "model": "deepseek-flash",
+      "mode": "live",
+      "ms": 11807,
+      "tier": "fast",
+      "tokens": 2569
+    },
+    {
+      "step": "Market research (Tavily)",
+      "model": "tavily-search",
+      "mode": "mock",
+      "ms": 0,
+      "tier": "tool",
+      "tokens": 0
+    },
+    {
+      "step": "Synthesize price range",
+      "model": "deepseek-flash",
+      "mode": "live",
+      "ms": 2460,
+      "tier": "main",
+      "tokens": 519
+    },
+    {
+      "step": "Draft proposal message",
+      "model": "deepseek-flash",
+      "mode": "live",
+      "ms": 2111,
+      "tier": "main",
+      "tokens": 1197
+    },
+    {
+      "step": "Negotiation coaching",
+      "model": "deepseek-v4-pro",
+      "mode": "live",
+      "ms": 17827,
+      "tier": "deep",
+      "tokens": 1495
+    }
+  ]
+}

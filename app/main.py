@@ -15,17 +15,26 @@ from .adapters.http import AdapterError
 from .adapters.payments import client_for, get_payments, MockPayments
 from .models import (AgentAction, AgentRequest, AgentResponse, Invoice, InvoiceDraftRequest, InvoiceDraftResponse,
                      PricingRequest, PricingResponse, QuoteRequest, QuoteResponse, ReminderResponse, ReminderSendResponse,
-                     ScopeRequest, ScopeResponse, TraceStep, WebhookResult)
+                     SampleProjectResponse, ScopeRequest, ScopeResponse, TraceStep, WebhookResult)
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
+BOOTED_AT = store.now()  # lets the UI notice a restart (= the free host wiped its demo data)
 STATIC = Path(__file__).parent / "static"
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # Validate configured model IDs against the provider's GET /models without blocking boot.
-    if config.get_settings().llm_live:
+    s = config.get_settings()
+    if s.llm_live:
         threading.Thread(target=llm_mod.check_models, daemon=True).start()
+    # Free hosts wipe the SQLite file on every restart: put the labelled sample clients back so a judge who opens
+    # the URL fresh still sees a populated pipeline. Idempotent (only when no sample rows exist).
+    if s.autoseed:
+        from .demo_data import ensure_samples
+        n = ensure_samples()
+        if n:
+            store.audit("demo_autoseed", count=n)
     yield
 
 
@@ -82,8 +91,10 @@ def health():
     if s.public_demo:
         notices.append("Public demo: invoices only go to sandbox addresses (" + s.recipient_domains + ")"
                         + (f"; live runs today {guard.live_runs_today()}/{s.daily_live_cap}" if s.daily_live_cap else ""))
+        notices.append("Free hosting: this demo sleeps when idle and resets its local data on wake-up "
+                       "(sample clients reload automatically). Short on time? Click \u201c\u26a1 Instant sample project\u201d.")
     return {"ok": True, "version": VERSION, "warnings": warnings, "notices": notices, "demo_client_email": s.demo_client_email,
-            "public_demo": s.public_demo, "adapters": {
+            "public_demo": s.public_demo, "booted_at": BOOTED_AT, "adapters": {
         "llm": {"mode": "live" if s.llm_live else "mock", "provider": s.llm_label, "provider_id": s.llm_provider, "models": models,
                 "model_check": chk.as_dict()},
         "search": {"mode": "live" if s.search_live else "mock", "provider": "Tavily"},
@@ -178,7 +189,9 @@ def list_invoices():
 def _get(inv_id: str) -> Invoice:
     inv = store.get(inv_id)
     if not inv:
-        raise HTTPException(404, "invoice not found")
+        raise HTTPException(404, "invoice not found. If you are on the hosted demo, the free server probably restarted "
+                                 "and reset its local data: create the drafts again (\u26a1 Instant sample project is one click). "
+                                 "Invoices already sent still exist in the PayPal sandbox.")
     return inv
 
 
@@ -309,6 +322,16 @@ def demo_event(inv_id: str, event: str):
         raise HTTPException(400, "unknown event")
     store.audit(f"demo_{event}", inv.id)
     return store.save(inv)
+
+
+@app.post("/api/demo/sample-project", response_model=SampleProjectResponse)
+def sample_project():
+    """One click to step 4: a scope, price reference and proposal recorded from a real DeepSeek run, re-priced from
+    today. No LLM call, so it is instant and does not use the daily live budget. The PayPal steps after it are real."""
+    from . import sample_project as sp
+    brief, sc, pr, q, trace = sp.load()
+    store.audit("demo_sample_project", total=q.total)
+    return SampleProjectResponse(brief=brief, scope=sc, pricing=pr, quote=q, trace=trace)
 
 
 @app.post("/api/demo/seed", response_model=list[Invoice])

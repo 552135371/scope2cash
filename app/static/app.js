@@ -40,14 +40,28 @@ function addTrace(steps) {
 }
 async function busy(btn, fn) {
   const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>Working…`;
-  try { await fn(); } finally { btn.disabled = false; btn.innerHTML = label; }
+  // Live model steps take 10-40 s (and the first request after the free host wakes up can take longer): say so.
+  const slow = setTimeout(() => { if (btn.disabled) btn.innerHTML = `<span class="spinner"></span>Working…<span class="slowhint">live AI step, usually 10–40 s</span>`; }, 6000);
+  try { await fn(); } finally { clearTimeout(slow); btn.disabled = false; btn.innerHTML = label; }
 }
 function show(id) { const el = $(id); el.classList.remove("hidden"); setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }
 
-// ---------- health
+// ---------- health (with a visible wake-up note: free hosts sleep when idle and cold-start on the first request)
 let SAMPLES = [];
+async function healthWithWakeup() {
+  const note = setTimeout(() => $("#wakeup").classList.remove("hidden"), 1500);
+  for (let i = 0; ; i++) {
+    try {
+      const r = await fetch("/api/health", { cache: "no-store" });
+      if (r.ok) { clearTimeout(note); $("#wakeup").classList.add("hidden"); return r.json(); }
+    } catch (e) { /* server still waking up */ }
+    $("#wakeup").classList.remove("hidden");
+    $("#wakeup-msg").textContent = `Waking up the demo server (attempt ${i + 2})… The free host can take up to a minute after being idle.`;
+    await new Promise((res) => setTimeout(res, Math.min(2000 + i * 1000, 6000)));
+  }
+}
 (async () => {
-  const h = await api("/api/health");
+  const h = await healthWithWakeup();
   const m = h.adapters.llm.models || {};
   const b = (label, a, extra = "") => `<span class="badge ${extra}" title="${esc(a.provider)}${a.models ? "\n" + esc(Object.entries(a.models).map(([k, v]) => k + ": " + v).join("\n")) : ""}"><span class="dot ${a.mode === "live" ? "live" : ""}"></span>${label} · ${a.mode}</span>`;
   $("#badges").innerHTML = b("LLM · " + (h.adapters.llm.provider || "?"), h.adapters.llm, h.warnings.length ? "warn" : "") + b("Tavily", h.adapters.search) + b("PayPal", h.adapters.payments)
@@ -61,6 +75,14 @@ let SAMPLES = [];
 })();
 
 // ---------- step 1
+$("#instant").onclick = (e) => busy(e.currentTarget, async () => {
+  const r = await api("/api/demo/sample-project", {});
+  $("#brief").value = r.brief; $("#trace").innerHTML = ""; $("#totals").classList.add("hidden"); $("#s5").classList.add("hidden");
+  state.scope = r.scope; state.pricing = r.pricing; state.quote = r.quote; state.position = "market"; state.rate = null;
+  addTrace(r.trace); renderScope(); renderPricing(); renderQuote();
+  ["#s2", "#s3"].forEach((s) => $(s).classList.remove("hidden")); setStep(4); show("#s4");
+  toast("Sample project loaded (recorded DeepSeek run). Next: Create PayPal invoice drafts");
+});
 $("#sample").onclick = () => { const x = SAMPLES[+$("#samples").value]; $("#brief").value = x ? x.brief : SAMPLE; };
 $("#samples").onchange = () => $("#sample").click();
 $("#brief").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") $("#go-scope").click(); });

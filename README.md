@@ -3,7 +3,7 @@
 **From a messy client brief to a paid invoice: an AI agent that scopes, prices with cited market data, and bills by milestone through PayPal, with a human approving every outbound step.**
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/552135371/scope2cash)
-![Tests](https://img.shields.io/badge/tests-70%20passing-brightgreen) ![PayPal](https://img.shields.io/badge/PayPal-sandbox%20verified-003087) ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
+![Tests](https://img.shields.io/badge/tests-77%20passing-brightgreen) ![PayPal](https://img.shields.io/badge/PayPal-sandbox%20verified-003087) ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 ## For judges: 60-second tour
 - **What it does:** paste a client brief → milestone scope → market-grounded price → quote → one PayPal invoice per milestone → the client pays → the invoice flips to **PAID** through a verified webhook → a collections agent chases late payers. Every outbound action (send, remind, cancel) waits for a human click.
@@ -12,6 +12,8 @@
   - **Orders v2:** `CAPTURE` orders as per-milestone checkout links, then capture → invoice marked paid.
   - **Webhooks:** `INVOICING.INVOICE.*` events, each checked with `POST /v1/notifications/verify-webhook-signature`.
   - **PayPal Agent Toolkit** (`paypal-agent-toolkit` 1.11.0): the collections agent's tools (`list_invoices`, `get_invoice`, `send_invoice_reminder`, `cancel_sent_invoice`).
+- **Try the hosted demo:** <https://scope2cash.onrender.com> (PayPal **sandbox**, no real money). It runs on a free instance, so the first page load after it has been idle can take up to a minute; the page shows a "waking up" note and retries by itself. A restart also resets the demo's local data, so the labelled sample clients are re-added automatically on boot.
+- **Judging in a hurry:** click **⚡ Instant sample project** in step 1. It replays a scope, price reference and proposal recorded from a real DeepSeek run (no model call, so it is instant and works even when the demo's daily AI budget is spent), re-priced from today. Then **Create PayPal invoice drafts** → **Approve & send** → **⏩ client pays (sandbox card)**: real PayPal sandbox Invoicing and Orders v2 calls, no PayPal login needed. The invoice turns **PAID**, and PayPal's own `INVOICING.INVOICE.PAID` webhook shows up in the Pipeline's event feed marked "verified by PayPal" (click Refresh after a few seconds).
 - **Try it without any keys:** every adapter has a clearly labelled mock mode, so `uvicorn app.main:app` runs the whole flow offline (see Quick start).
 - **Verified on 2026-10-17 in the PayPal sandbox:** draft → send → checkout order → test-card capture → invoice `PAID`, with no real money involved (see *Checkout links* below and `eval/sandbox_smoke.md`).
 
@@ -139,6 +141,7 @@ uvicorn app.main:app --port 8765
 | `SCOPE2CASH_PUBLIC_DEMO` | `0` | `1` = sandbox-only invoice recipients and a default 30 AI requests per IP per hour |
 | `SCOPE2CASH_RATE_LIMIT` | `0` | AI requests per IP per hour (0 = default) |
 | `SCOPE2CASH_DAILY_LIVE_CAP` | `0` | Live LLM/Tavily steps per day before falling back to offline heuristics (0 = no cap) |
+| `SCOPE2CASH_AUTOSEED` | same as `SCOPE2CASH_PUBLIC_DEMO` | `1` = re-add the labelled sample clients on boot when none exist (free hosts wipe SQLite on restart) |
 | `SCOPE2CASH_RECIPIENT_DOMAINS` | `example.com` | Allowed recipient domains in public-demo mode |
 | `SCOPE2CASH_DEMO_CLIENT_EMAIL` | `sarah@bloompilates.example.com` | Prefilled client email (e.g. your sandbox buyer) |
 | `SCOPE2CASH_ENV_FILE` | (unset) | Optional extra env file outside the repo |

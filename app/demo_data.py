@@ -36,3 +36,10 @@ def sample_invoices() -> List[Invoice]:
             paid_at=(due_date - timedelta(days=1)).isoformat() if status == "PAID" else "",
             approved_at=store.now() if status != "DRAFT" else ""))
     return out
+
+
+def ensure_samples() -> int:
+    """Idempotent: add the sample clients only if the store has none. Returns how many rows were added."""
+    if any(i.sample for i in store.all_invoices()):
+        return 0
+    return len([store.save(inv, seq=store.next_seq()) for inv in sample_invoices()])

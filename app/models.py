@@ -4,7 +4,7 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 PROJECT_TYPES = ("ios", "mobile", "web", "automation", "design", "data")
-Mode = Literal["live", "mock", "fallback", "error"]
+Mode = Literal["live", "mock", "fallback", "error", "replay"]  # replay: recorded instant sample project
 
 
 def _num(v, default: float) -> float:
@@ -277,3 +277,11 @@ class AgentResponse(BaseModel):
     proposals: List[AgentAction]
     trace: List[TraceStep]
     toolkit: str = ""
+
+
+class SampleProjectResponse(BaseModel):
+    brief: str
+    scope: Scope
+    pricing: PricingReference
+    quote: Quote
+    trace: List[TraceStep]

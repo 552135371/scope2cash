@@ -148,6 +148,9 @@ class Settings:
     daily_live_cap: int = field(default_factory=lambda: int(_float("SCOPE2CASH_DAILY_LIVE_CAP", 0)))
     demo_client_email: str = field(default_factory=lambda: _get("SCOPE2CASH_DEMO_CLIENT_EMAIL", "sarah@bloompilates.example.com"))
     recipient_domains: str = field(default_factory=lambda: _get("SCOPE2CASH_RECIPIENT_DOMAINS", "example.com"))
+    # Re-add the labelled sample clients on boot if none exist (free hosts wipe SQLite on restart). On by default in
+    # public-demo mode; SCOPE2CASH_AUTOSEED=0 turns it off.
+    autoseed: bool = field(default_factory=lambda: _bool("SCOPE2CASH_AUTOSEED", _get("SCOPE2CASH_PUBLIC_DEMO") == "1"))
 
     @property
     def effective_rate_limit(self) -> int:
