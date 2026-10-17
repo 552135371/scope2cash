@@ -202,6 +202,11 @@ class Invoice(BaseModel):
     paid_at: str = ""
     last_event: str = ""  # last PayPal webhook event applied, e.g. INVOICING.INVOICE.PAID
     sample: bool = False  # seeded demo data (never a real client)
+    # PayPal Orders v2 checkout link for this milestone (an alternative to the invoice's payer link)
+    order_id: str = ""
+    order_status: str = ""  # CREATED | PAYER_ACTION_REQUIRED | APPROVED | COMPLETED | ...
+    checkout_link: str = ""
+    capture_id: str = ""
 
 
 class InvoiceDraftRequest(BaseModel):

@@ -174,10 +174,13 @@ function renderInvoices() {
       ${i.status === "DRAFT" ? `<button class="pp tiny" data-a="send" data-id="${i.id}">Approve & send</button>` : ""}
       ${["SENT", "OVERDUE", "PARTIALLY_PAID"].includes(i.status) ? `<button class="ghost tiny" data-a="remind" data-id="${i.id}">Draft reminder</button>` : ""}
       ${!demo && i.payer_link && i.status !== "DRAFT" ? `<a class="ghost tiny" style="text-decoration:none;color:var(--pp)" href="${esc(i.payer_link)}" target="_blank" rel="noopener">Payer view ↗</a>` : ""}
+      ${!demo && ["SENT", "OVERDUE", "PARTIALLY_PAID"].includes(i.status) && !i.checkout_link ? `<button class="ghost tiny" data-a="checkout" data-id="${i.id}">Checkout link</button>` : ""}
+      ${!demo && i.checkout_link && i.status !== "PAID" ? `<a class="ghost tiny" style="text-decoration:none;color:var(--pp)" href="${esc(i.checkout_link)}" target="_blank" rel="noopener">Pay with PayPal ↗</a>` : ""}
+      ${!demo && ["SENT", "OVERDUE", "PARTIALLY_PAID"].includes(i.status) ? `<button class="ghost tiny" data-a="cardpay" data-id="${i.id}">⏩ client pays (sandbox card)</button>` : ""}
       ${demo && i.status === "SENT" ? `<button class="ghost tiny" data-a="overdue" data-id="${i.id}">⏩ overdue</button><button class="ghost tiny" data-a="pay" data-id="${i.id}">⏩ paid</button>` : ""}
       ${demo && i.status === "OVERDUE" ? `<button class="ghost tiny" data-a="pay" data-id="${i.id}">⏩ paid</button>` : ""}
       </div></td></tr>`).join("")}</tbody></table>
-    <p class="muted small">${demo ? "Demo mode: ⏩ buttons simulate client actions. With PayPal sandbox keys, statuses sync from PayPal." : "Statuses sync live from PayPal Invoicing."}</p>
+    <p class="muted small">${demo ? "Demo mode: ⏩ buttons simulate client actions. With PayPal sandbox keys, statuses sync from PayPal." : "Statuses sync live from PayPal Invoicing. Checkout links use PayPal Orders v2; ⏩ sandbox card pays with a PayPal sandbox test card (no real money)."}</p>
     <div class="row end"><button class="ghost" id="refresh">Refresh statuses</button></div>`;
   $("#totals").classList.remove("hidden");
   $("#totals").innerHTML = `<div><span>Quoted</span><b>${money(state.quote.total, cur)}</b></div><div><span>Paid</span><b style="color:var(--ok)">${money(paid, cur)}</b></div><div><span>Outstanding</span><b>${money(state.quote.total - paid, cur)}</b></div>`;
@@ -195,6 +198,8 @@ async function act(a, id) {
     window.dispatchEvent(new Event("s2c:invoices"));
   };
   if (a === "send") { const inv = await api(`/api/invoices/${id}/send`, {}); replace(inv); toast(inv.provider === "mock" ? "Invoice marked sent (mock: nothing left this machine)" : "Invoice sent via PayPal " + inv.provider.replace("paypal-", "")); }
+  if (a === "checkout") { const r = await api(`/api/invoices/${id}/checkout`, {}); addTrace(r.trace); replace(r.invoice); toast("PayPal checkout link ready: order " + r.invoice.order_id); }
+  if (a === "cardpay") { const r = await api(`/api/demo/${id}/sandbox-card-pay`, {}); addTrace(r.trace); replace(r.invoice); toast(`Sandbox payment captured (${r.invoice.capture_id || "mock"}) → invoice ${r.invoice.status}`); }
   if (a === "pay" || a === "overdue" || a === "cancel") {
     const inv = await api(`/api/demo/${id}/${a}`, {}); replace(inv);
     if (a !== "overdue") toast(`Simulated PayPal webhook ${inv.last_event || ""} → ${inv.status} (mock-signed, verified)`);
@@ -215,3 +220,7 @@ async function act(a, id) {
     });
   }
 }
+// Back from PayPal checkout (return_url / cancel_url): say what happened.
+{ const c = new URLSearchParams(location.search).get("checkout");
+  if (c) setTimeout(() => toast({ paid: "Payment captured via PayPal Checkout: invoice marked PAID", pending: "PayPal order not completed yet",
+    cancelled: "Checkout cancelled by the buyer", failed: "PayPal capture failed (see audit log)" }[c] || "Unknown checkout"), 600); }

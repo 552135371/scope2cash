@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import agent, config, guard, paypal_agent, store, webhooks
+from .checkout_routes import router as checkout_router
 from .adapters import llm as llm_mod
 from .adapters.http import AdapterError
 from .adapters.payments import client_for, get_payments, MockPayments
@@ -29,6 +30,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Scope2Cash", version=VERSION, lifespan=lifespan)
+app.include_router(checkout_router)  # PayPal Orders v2 checkout links (app/checkout_routes.py)
 
 
 AI_PATHS = ("/api/scope", "/api/pricing", "/api/quote", "/api/invoices", "/api/agent/collections")
@@ -85,7 +87,7 @@ def health():
         "llm": {"mode": "live" if s.llm_live else "mock", "provider": s.llm_label, "provider_id": s.llm_provider, "models": models,
                 "model_check": chk.as_dict()},
         "search": {"mode": "live" if s.search_live else "mock", "provider": "Tavily"},
-        "payments": {"mode": "live" if s.payments_live else "mock", "provider": f"PayPal Invoicing v2 ({s.paypal_env})"},
+        "payments": {"mode": "live" if s.payments_live else "mock", "provider": f"PayPal Invoicing v2 + Orders v2 ({s.paypal_mode if s.payments_live else 'offline'})"},
         "webhooks": {"mode": "live" if (s.payments_live and s.paypal_webhook_id) else "mock",
                      "provider": "PayPal webhooks (verify-webhook-signature)" if s.payments_live else "local HMAC-signed simulator",
                      "path": "/api/paypal/webhook"},

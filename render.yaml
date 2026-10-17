@@ -20,10 +20,13 @@ services:
         sync: false
       - key: PAYPAL_CLIENT_SECRET
         sync: false
-      - key: PAYPAL_INVOICER_EMAIL
+      - key: PAYPAL_SANDBOX_BUSINESS_EMAIL
         sync: false
-      - key: PAYPAL_ENV
+      - key: PAYPAL_MODE
         value: sandbox
+      # Public URL used for PayPal checkout return/cancel URLs (https://<service>.onrender.com)
+      - key: PUBLIC_BASE_URL
+        sync: false
       # Subscribe https://<service>.onrender.com/api/paypal/webhook in the PayPal Developer Dashboard, then paste its ID.
       - key: PAYPAL_WEBHOOK_ID
         sync: false

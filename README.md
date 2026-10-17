@@ -54,6 +54,12 @@ The UI's **Agent trace** shows, for every step, the tier and model, live/mock/fa
 - Without a key (or if the live loop fails, which the UI shows), a deterministic planner drives the same toolkit tools.
 - Why only the shared core: the toolkit's framework adapters (OpenAI Agents SDK, LangChain, CrewAI) pin old versions that can't be installed on Python 3.13. So it's installed with `--no-deps` (see `requirements-paypal-toolkit.txt`) and only the framework-neutral core is used. The orchestration is OpenAI-compatible tool calling, which works with any provider.
 
+### Checkout links on PayPal Orders v2 (`app/adapters/checkout.py`, `app/checkout_routes.py`)
+- **Checkout link** on any sent milestone creates a `CAPTURE` order (`POST /v2/checkout/orders`, `payment_source.paypal.experience_context` with return/cancel URLs) and shows the buyer's *Pay with PayPal* link.
+- When the buyer approves, PayPal sends them to `/paypal/return`. The app then captures the order (`POST /v2/checkout/orders/{id}/capture`) and records that capture on the milestone's invoice (`POST /v2/invoicing/invoices/{id}/payments`), so the invoice, the pipeline and the webhooks all say PAID. Polling `GET /api/invoices/{id}/checkout` does the same if the buyer never comes back.
+- **Sandbox demo payment.** *⏩ client pays (sandbox card)* pays a real sandbox order with a PayPal sandbox test card, so the demo shows a real PAID transition without a buyer login. It is refused in live mode.
+- Verified against the real sandbox on 2026-10-17: order → `PAYER_ACTION_REQUIRED`, capture before approval → `422 ORDER_NOT_APPROVED`, test-card order → `COMPLETED`, invoice → `MARKED_AS_PAID`.
+
 ### Pipeline view (AG Grid Community)
 `app/static/pipeline.js` uses [AG Grid Community](https://www.ag-grid.com/) 36.2.0 (MIT), version-pinned from the jsDelivr CDN.
 - **Scoreboard:** collected, awaiting, overdue and drafts.
@@ -76,7 +82,7 @@ Every adapter switches independently based on the keys in `.env`. Header badges 
 |---|---|---|
 | LLM | `DEEPSEEK_API_KEY` (or `NVIDIA_API_KEY` / `NEBIUS_API_KEY`) set | Deterministic, brief-sensitive heuristics (`app/heuristics.py`) |
 | Search | `TAVILY_API_KEY` set | Clearly labelled sample sources per project type |
-| Payments | `PAYPAL_CLIENT_ID` + `PAYPAL_CLIENT_SECRET` set | Local state machine; ⏩ buttons simulate client actions |
+| Payments | `PAYPAL_CLIENT_ID` + `PAYPAL_CLIENT_SECRET` set (and `PAYPAL_MODE` not `mock`) | Local state machine; ⏩ buttons simulate client actions |
 | Webhooks | `PAYPAL_WEBHOOK_ID` set (and payments live) | HMAC-signed mock events through the same handler |
 | Collections agent | an LLM key set (tool calling) | Deterministic planner over the same toolkit tools |
 
@@ -106,7 +112,9 @@ uvicorn app.main:app --port 8765
 | `TAVILY_API_KEY` | (empty → mock) | Tavily key |
 | `TAVILY_SEARCH_DEPTH` | `basic` | `basic`/`fast`/`ultra-fast` = 1 credit, `advanced` = 2 |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | (empty → mock) | PayPal REST app credentials |
-| `PAYPAL_ENV` | `sandbox` | `sandbox` or `live` |
+| `PAYPAL_MODE` | `sandbox` if keys are set, else `mock` | `mock` / `sandbox` / `live`. `live` also needs `PAYPAL_ALLOW_LIVE=1`, otherwise it stays sandbox. The legacy `PAYPAL_ENV` is still read |
+| `PAYPAL_SANDBOX_BUSINESS_EMAIL` | (empty) | Sandbox Business account; used as the invoicer in sandbox mode unless `PAYPAL_INVOICER_EMAIL` is set |
+| `PUBLIC_BASE_URL` | request host | Public URL for PayPal's checkout return/cancel URLs when deployed |
 | `PAYPAL_INVOICER_EMAIL`, `PAYPAL_BUSINESS_NAME` | (empty) | Invoicer shown on invoices (email must be on the PayPal profile) |
 | `PAYPAL_WEBHOOK_ID` | (empty) | Webhook ID from the PayPal dashboard; required to accept real (PayPal-verified) webhooks |
 | `SCOPE2CASH_MOCK_WEBHOOK_SECRET` | `s2c-local-mock-webhooks` | HMAC key for simulated events (set a random value when deployed) |

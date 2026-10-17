@@ -58,6 +58,19 @@ def _get(name: str, default: str = "") -> str:
     return (os.getenv(name) or default).strip()
 
 
+def _paypal_mode() -> str:
+    """PAYPAL_MODE = mock | sandbox | live. Default: sandbox when PayPal keys are present, else mock.
+    Live (real money) needs PAYPAL_ALLOW_LIVE=1 as well; otherwise it is downgraded to sandbox.
+    The legacy PAYPAL_ENV=live is treated the same way."""
+    has_keys = bool(_get("PAYPAL_CLIENT_ID") and _get("PAYPAL_CLIENT_SECRET"))
+    mode = _get("PAYPAL_MODE").lower()
+    if mode not in ("mock", "sandbox", "live"):
+        mode = ("live" if _get("PAYPAL_ENV").lower() == "live" else "sandbox") if has_keys else "mock"
+    if mode == "live" and _get("PAYPAL_ALLOW_LIVE") != "1":
+        mode = "sandbox"
+    return mode if has_keys else "mock"
+
+
 def _float(name: str, default: float) -> float:
     try:
         return float(_get(name, str(default)))
@@ -83,9 +96,9 @@ class Settings:
     llm_provider: str = field(default_factory=_provider)
     llm_label: str = field(default_factory=lambda: _pv("label"))
     llm_family: str = field(default_factory=lambda: _pv("family"))
-    llm_api_key: str = field(default_factory=lambda: _get(_pv("key_env")))
+    llm_api_key: str = field(repr=False, default_factory=lambda: _get(_pv("key_env")))
     llm_base_url: str = field(default_factory=lambda: _get(_pv("base_env"), _pv("base")))
-    nebius_api_key: str = field(default_factory=lambda: _get("NEBIUS_API_KEY"))
+    nebius_api_key: str = field(repr=False, default_factory=lambda: _get("NEBIUS_API_KEY"))
     nebius_base_url: str = field(default_factory=lambda: _get("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/"))
     model_fast: str = field(default_factory=lambda: _get("MODEL_FAST", _pv("models", 0)))
     model_main: str = field(default_factory=lambda: _get("MODEL_MAIN", _pv("models", 1)))
@@ -101,21 +114,25 @@ class Settings:
     llm_max_tokens: int = field(default_factory=lambda: _int("LLM_MAX_TOKENS", 4096))
     llm_check_models: bool = field(default_factory=lambda: _bool("LLM_CHECK_MODELS", True))
     # Search: Tavily
-    tavily_api_key: str = field(default_factory=lambda: _get("TAVILY_API_KEY"))
+    tavily_api_key: str = field(repr=False, default_factory=lambda: _get("TAVILY_API_KEY"))
     tavily_base_url: str = field(default_factory=lambda: _get("TAVILY_BASE_URL", "https://api.tavily.com"))
     tavily_search_depth: str = field(default_factory=lambda: _get("TAVILY_SEARCH_DEPTH", "basic"))
     search_timeout_s: float = field(default_factory=lambda: _float("SEARCH_TIMEOUT_S", 20))
     # Payments: PayPal Invoicing v2
-    paypal_client_id: str = field(default_factory=lambda: _get("PAYPAL_CLIENT_ID"))
-    paypal_client_secret: str = field(default_factory=lambda: _get("PAYPAL_CLIENT_SECRET"))
+    paypal_client_id: str = field(repr=False, default_factory=lambda: _get("PAYPAL_CLIENT_ID"))
+    paypal_client_secret: str = field(repr=False, default_factory=lambda: _get("PAYPAL_CLIENT_SECRET"))
     paypal_env: str = field(default_factory=lambda: _get("PAYPAL_ENV", "sandbox"))
-    paypal_invoicer_email: str = field(default_factory=lambda: _get("PAYPAL_INVOICER_EMAIL"))
+    # Effective mode: mock | sandbox | live (live only with PAYPAL_ALLOW_LIVE=1). Decides payments_live and the base URL.
+    paypal_mode: str = field(default_factory=_paypal_mode)
+    # Invoicer on invoices; in sandbox mode defaults to the sandbox Business account (PAYPAL_SANDBOX_BUSINESS_EMAIL).
+    paypal_invoicer_email: str = field(repr=False, default_factory=lambda: _get("PAYPAL_INVOICER_EMAIL") or (
+        _get("PAYPAL_SANDBOX_BUSINESS_EMAIL") if _paypal_mode() == "sandbox" else ""))
     paypal_business_name: str = field(default_factory=lambda: _get("PAYPAL_BUSINESS_NAME"))
     paypal_timeout_s: float = field(default_factory=lambda: _float("PAYPAL_TIMEOUT_S", 30))
     # Webhooks: the ID PayPal shows when you subscribe a listener URL (Developer Dashboard > your app > Webhooks).
     paypal_webhook_id: str = field(default_factory=lambda: _get("PAYPAL_WEBHOOK_ID"))
     # Mock mode only: HMAC key for locally simulated webhook deliveries (never accepted for PayPal-hosted invoices).
-    mock_webhook_secret: str = field(default_factory=lambda: _get("SCOPE2CASH_MOCK_WEBHOOK_SECRET", "s2c-local-mock-webhooks"))
+    mock_webhook_secret: str = field(repr=False, default_factory=lambda: _get("SCOPE2CASH_MOCK_WEBHOOK_SECRET", "s2c-local-mock-webhooks"))
     # PayPal Agent Toolkit tools the collections agent may use (read tools run directly; write tools need approval).
     agent_max_steps: int = field(default_factory=lambda: _int("AGENT_MAX_STEPS", 6))
     # Behaviour
@@ -157,15 +174,15 @@ class Settings:
 
     @property
     def payments_live(self) -> bool:
-        return bool(self.paypal_client_id and self.paypal_client_secret) and not self.force_mock
+        return bool(self.paypal_client_id and self.paypal_client_secret) and self.paypal_mode != "mock" and not self.force_mock
 
     @property
     def paypal_base(self) -> str:
-        return "https://api-m.paypal.com" if self.paypal_env == "live" else "https://api-m.sandbox.paypal.com"
+        return "https://api-m.paypal.com" if self.paypal_mode == "live" else "https://api-m.sandbox.paypal.com"
 
     @property
     def paypal_provider(self) -> str:
-        return "paypal-live" if self.paypal_env == "live" else "paypal-sandbox"
+        return "paypal-live" if self.paypal_mode == "live" else "paypal-sandbox"
 
     def models(self) -> dict:
         return {"fast": self.model_fast, "main": self.model_main, "deep": self.model_deep}

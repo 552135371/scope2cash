@@ -13,6 +13,8 @@ Live: PayPal Invoicing API v2 (sandbox by default), checked against PayPal's pub
 Note from the spec: custom `subject`/`note` on send/remind are not honoured (PayPal uses its own email text),
 so Scope2Cash's personalised reminder is a separate draft the freelancer sends through their own channel.
 
+Orders v2 checkout links (and the sandbox test-card demo payment) live in checkout.py on the same transport.
+
 Mock: a local state machine with clearly fake INV2-MOCK ids, used offline and as a visible fallback.
 """
 from __future__ import annotations

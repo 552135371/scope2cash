@@ -33,6 +33,9 @@ function actionsHtml(i) {
     UNPAID.includes(i.status) ? b("remind", "Draft reminder") : "",
     mock && UNPAID.includes(i.status) ? b("pay", "⏩ paid") : "",
     !mock && i.payer_link && i.status !== "DRAFT" ? `<a class="ghost tiny" href="${esc(i.payer_link)}" target="_blank" rel="noopener">Payer view ↗</a>` : "",
+    !mock && UNPAID.includes(i.status) && !i.checkout_link ? b("checkout", "Checkout link") : "",
+    !mock && i.checkout_link && i.status !== "PAID" ? `<a class="ghost tiny" href="${esc(i.checkout_link)}" target="_blank" rel="noopener">Pay with PayPal ↗</a>` : "",
+    !mock && UNPAID.includes(i.status) ? b("cardpay", "⏩ client pays (sandbox card)") : "",
   ].join("");
 }
 const pill = (s) => `<span class="pill ${esc(s)}">${esc(s.replace("_", " "))}</span>`;
