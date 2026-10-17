@@ -195,6 +195,13 @@ class Invoice(BaseModel):
     amount_due: Optional[float] = None
     approved_at: str = ""
     reminded_at: str = ""
+    # Pipeline context (v0.3): which client/project the milestone belongs to, and when PayPal said it was paid.
+    client_name: str = ""
+    project: str = ""
+    created_at: str = ""
+    paid_at: str = ""
+    last_event: str = ""  # last PayPal webhook event applied, e.g. INVOICING.INVOICE.PAID
+    sample: bool = False  # seeded demo data (never a real client)
 
 
 class InvoiceDraftRequest(BaseModel):
@@ -220,3 +227,48 @@ class ReminderResponse(BaseModel):
 class ReminderSendResponse(BaseModel):
     invoice: Invoice
     trace: List[TraceStep]
+
+
+class WebhookResult(BaseModel):
+    status: Literal["processed", "duplicate", "ignored"]
+    event_id: str
+    event_type: str
+    invoice_id: str = ""
+    invoice_status: str = ""
+    verified_by: str = ""  # paypal-api | mock-hmac
+    detail: str = ""
+
+
+class AgentRequest(BaseModel):
+    instruction: str = Field(min_length=3, max_length=2000)
+
+
+class ToolCallRecord(BaseModel):
+    tool: str
+    args: dict = {}
+    kind: Literal["read", "write"] = "read"
+    mode: Mode = "mock"
+    ms: int = 0
+    summary: str = ""
+
+
+class AgentAction(BaseModel):
+    id: str
+    tool: str
+    params: dict
+    invoice_id: str = ""
+    invoice_number: str = ""
+    summary: str = ""
+    reason: str = ""
+    status: Literal["pending", "executed", "rejected", "failed"] = "pending"
+    result: str = ""
+    created_at: str = ""
+    decided_at: str = ""
+
+
+class AgentResponse(BaseModel):
+    answer: str
+    tool_calls: List[ToolCallRecord]
+    proposals: List[AgentAction]
+    trace: List[TraceStep]
+    toolkit: str = ""

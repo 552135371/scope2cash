@@ -21,6 +21,11 @@ services:
         sync: false
       - key: PAYPAL_ENV
         value: sandbox
+      # Subscribe https://<service>.onrender.com/api/paypal/webhook in the PayPal Developer Dashboard, then paste its ID.
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: SCOPE2CASH_MOCK_WEBHOOK_SECRET
+        generateValue: true
       - key: MODEL_FAST
         value: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B
       - key: MODEL_MAIN

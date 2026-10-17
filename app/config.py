@@ -69,6 +69,12 @@ class Settings:
     paypal_invoicer_email: str = field(default_factory=lambda: _get("PAYPAL_INVOICER_EMAIL"))
     paypal_business_name: str = field(default_factory=lambda: _get("PAYPAL_BUSINESS_NAME"))
     paypal_timeout_s: float = field(default_factory=lambda: _float("PAYPAL_TIMEOUT_S", 30))
+    # Webhooks: the ID PayPal shows when you subscribe a listener URL (Developer Dashboard > your app > Webhooks).
+    paypal_webhook_id: str = field(default_factory=lambda: _get("PAYPAL_WEBHOOK_ID"))
+    # Mock mode only: HMAC key for locally simulated webhook deliveries (never accepted for PayPal-hosted invoices).
+    mock_webhook_secret: str = field(default_factory=lambda: _get("SCOPE2CASH_MOCK_WEBHOOK_SECRET", "s2c-local-mock-webhooks"))
+    # PayPal Agent Toolkit tools the collections agent may use (read tools run directly; write tools need approval).
+    agent_max_steps: int = field(default_factory=lambda: _int("AGENT_MAX_STEPS", 6))
     # Behaviour
     fallback_to_mock: bool = field(default_factory=lambda: _bool("FALLBACK_TO_MOCK", True))
     currency: str = field(default_factory=lambda: _get("APP_CURRENCY", "USD"))

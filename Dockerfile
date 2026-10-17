@@ -5,8 +5,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     SCOPE2CASH_DB=/tmp/scope2cash.db PORT=8000
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+COPY requirements.txt requirements-paypal-toolkit.txt ./
+RUN pip install -r requirements.txt && pip install --no-deps -r requirements-paypal-toolkit.txt
 
 COPY app ./app
 COPY eval/briefs.json ./eval/briefs.json

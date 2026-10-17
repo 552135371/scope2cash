@@ -171,6 +171,21 @@ class NebiusLLM:
         except ValueError as e:
             raise AdapterError(PROVIDER, "response was not JSON") from e
 
+    def chat_tools(self, tier: Tier, messages: List[Dict[str, Any]], tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """One OpenAI-compatible tool-calling turn (docs.tokenfactory.nebius.com/ai-models-inference/function-calling).
+        Returns the raw chat.completion JSON; the caller executes any `tool_calls` and loops."""
+        body: Dict[str, Any] = {"model": self.model_for(tier), "messages": messages, "tools": tools, "tool_choice": "auto",
+                                "temperature": 0.1, "max_tokens": self.s.llm_max_tokens}
+        if self.s.llm_reasoning_effort:
+            body["reasoning_effort"] = self.s.llm_reasoning_effort
+        r = http.request(PROVIDER, "POST", self.url, timeout_s=self.s.llm_timeout_s, retries=self.s.llm_max_retries,
+                         headers={"Authorization": f"Bearer {self.s.nebius_api_key}", "Content-Type": "application/json"},
+                         json=body, describe_error=_describe_error)
+        try:
+            return r.json()
+        except ValueError as e:
+            raise AdapterError(PROVIDER, "response was not JSON") from e
+
     def complete_json(self, tier: Tier, system: str, user: str, fallback: Callable[[], Dict[str, Any]],
                       validate: Optional[Callable[[Dict[str, Any]], Any]] = None) -> LLMResult:
         t0 = time.time()

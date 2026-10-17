@@ -8,14 +8,15 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import agent, config, guard, store
+from . import agent, config, guard, paypal_agent, store, webhooks
 from .adapters import llm as llm_mod
 from .adapters.http import AdapterError
 from .adapters.payments import client_for, get_payments, MockPayments
-from .models import (Invoice, InvoiceDraftRequest, InvoiceDraftResponse, PricingRequest, PricingResponse, QuoteRequest,
-                     QuoteResponse, ReminderResponse, ReminderSendResponse, ScopeRequest, ScopeResponse, TraceStep)
+from .models import (AgentAction, AgentRequest, AgentResponse, Invoice, InvoiceDraftRequest, InvoiceDraftResponse,
+                     PricingRequest, PricingResponse, QuoteRequest, QuoteResponse, ReminderResponse, ReminderSendResponse,
+                     ScopeRequest, ScopeResponse, TraceStep, WebhookResult)
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 STATIC = Path(__file__).parent / "static"
 
 
@@ -30,7 +31,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Scope2Cash", version=VERSION, lifespan=lifespan)
 
 
-AI_PATHS = ("/api/scope", "/api/pricing", "/api/quote", "/api/invoices")
+AI_PATHS = ("/api/scope", "/api/pricing", "/api/quote", "/api/invoices", "/api/agent/collections")
 
 
 @app.middleware("http")
@@ -85,6 +86,12 @@ def health():
                 "model_check": chk.as_dict()},
         "search": {"mode": "live" if s.search_live else "mock", "provider": "Tavily"},
         "payments": {"mode": "live" if s.payments_live else "mock", "provider": f"PayPal Invoicing v2 ({s.paypal_env})"},
+        "webhooks": {"mode": "live" if (s.payments_live and s.paypal_webhook_id) else "mock",
+                     "provider": "PayPal webhooks (verify-webhook-signature)" if s.payments_live else "local HMAC-signed simulator",
+                     "path": "/api/paypal/webhook"},
+        "agent_toolkit": {"mode": "live" if s.payments_live else "mock", "provider": paypal_agent.toolkit_label(),
+                          "available": paypal_agent.available(),
+                          "tools": sorted(paypal_agent.READ_TOOLS | paypal_agent.WRITE_TOOLS) if paypal_agent.available() else []},
     }}
 
 
@@ -113,7 +120,8 @@ def _create_all(pay, req: InvoiceDraftRequest):
     out, n_total = [], len(req.quote.line_items)
     for n, li in enumerate(req.quote.line_items, 1):
         inv = Invoice(id="pending", number=f"S2C-{date.today():%y%m%d}-{n:02d}", milestone=li.milestone, amount=li.amount,
-                      currency=req.quote.currency, due_date=li.due_date, client_email=req.client_email)
+                      currency=req.quote.currency, due_date=li.due_date, client_email=req.client_email,
+                      client_name=req.scope.client_name, project=req.scope.project_title, created_at=store.now())
         note = (f"Milestone {n} of {n_total} for {req.scope.project_title}. Thank you for your business!")
         out.append(pay.create_draft(inv, req.scope.project_title, note, li.deliverables, req.quote.terms, n, n_total))
     return out
@@ -138,9 +146,9 @@ def create_invoices(req: InvoiceDraftRequest):
         pay, mode = MockPayments(), "fallback"
         warning = f"PayPal draft creation failed ({e.message[:260]}); created local MOCK drafts instead. Nothing was sent."
         invoices = _create_all(pay, req)
-    store.clear()
-    for i, inv in enumerate(invoices, 1):
-        store.save(inv, seq=i)
+    # v0.3: invoices accumulate into a cross-client pipeline (AG Grid view) instead of replacing the last project.
+    for inv in invoices:
+        store.save(inv, seq=store.next_seq())
     store.audit("drafts_created", provider=invoices[0].provider if invoices else "", count=len(invoices),
                 total=sum(i.amount for i in invoices), mode=mode)
     extra = "; ".join(getattr(pay, "warnings", []))
@@ -218,20 +226,94 @@ def audit_log():
     return store.audit_log()
 
 
+# ---- PayPal webhooks ----
+@app.post("/api/paypal/webhook", response_model=WebhookResult)
+async def paypal_webhook(request: Request):
+    """Listener URL to subscribe in the PayPal Developer Dashboard (events: INVOICING.INVOICE.PAID / CANCELLED /
+    REFUNDED / UPDATED). Verified with PayPal's verify-webhook-signature API before anything changes."""
+    raw = await request.body()
+    if len(raw) > 512_000:
+        raise HTTPException(413, "payload too large")
+    try:
+        return webhooks.process(raw, dict(request.headers))
+    except webhooks.WebhookRejected as e:
+        store.audit("webhook_rejected", reason=e.message[:200])
+        raise HTTPException(e.status, e.message)
+
+
+@app.get("/api/webhooks/events")
+def webhook_events():
+    return store.webhook_events()
+
+
+# ---- collections agent (PayPal Agent Toolkit) ----
+@app.post("/api/agent/collections", response_model=AgentResponse)
+def collections_agent(req: AgentRequest):
+    pre = _budget_step()
+    try:
+        out = paypal_agent.run_agent(req.instruction)
+    except paypal_agent.AgentUnavailable as e:
+        raise HTTPException(503, str(e))
+    out.trace = pre + out.trace
+    return out
+
+
+@app.get("/api/agent/actions", response_model=list[AgentAction])
+def agent_actions(status: str = ""):
+    return store.actions(status)
+
+
+def _decide(action_id: str, approve: bool):
+    try:
+        a, inv = paypal_agent.decide(action_id, approve)
+    except KeyError:
+        raise HTTPException(404, "action not found")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    return {"action": a, "invoice": inv}
+
+
+@app.post("/api/agent/actions/{action_id}/approve")
+def approve_action(action_id: str):
+    """Human-approved: executes the queued PayPal Agent Toolkit call."""
+    return _decide(action_id, True)
+
+
+@app.post("/api/agent/actions/{action_id}/reject")
+def reject_action(action_id: str):
+    return _decide(action_id, False)
+
+
 # ---- demo helpers (mock invoices only) ----
+DEMO_EVENTS = {"pay": "INVOICING.INVOICE.PAID", "cancel": "INVOICING.INVOICE.CANCELLED"}
+
+
 @app.post("/api/demo/{inv_id}/{event}", response_model=Invoice)
 def demo_event(inv_id: str, event: str):
     inv = _get(inv_id)
     if inv.provider != "mock":
         raise HTTPException(400, "demo events only apply to mock invoices; pay a sandbox invoice via its payer link")
-    if event == "pay":
-        inv = inv.model_copy(update={"status": "PAID", "provider_status": "PAID", "days_overdue": 0})
-    elif event == "overdue":
+    if event in DEMO_EVENTS:
+        # Simulate the client paying/cancelling: a PayPal-shaped, signed webhook goes through the real listener pipeline.
+        res = webhooks.deliver_mock(inv, DEMO_EVENTS[event])
+        store.audit(f"demo_{event}", inv.id, webhook=res.event_id, result=res.status)
+        return _get(inv_id)
+    if event == "overdue":  # PayPal has no "overdue" event: it's the due date passing, so this one is simulated directly
         inv = inv.model_copy(update={"status": "OVERDUE", "provider_status": "UNPAID", "days_overdue": 6})
     else:
         raise HTTPException(400, "unknown event")
     store.audit(f"demo_{event}", inv.id)
     return store.save(inv)
+
+
+@app.post("/api/demo/seed", response_model=list[Invoice])
+def seed_pipeline():
+    """Add clearly labelled SAMPLE invoices (fictional clients, mock provider) so the pipeline view has history."""
+    from .demo_data import sample_invoices
+    store.delete_samples()
+    out = [store.save(inv, seq=store.next_seq()) for inv in sample_invoices()]
+    store.audit("demo_seed", count=len(out))
+    return out
 
 
 @app.get("/")

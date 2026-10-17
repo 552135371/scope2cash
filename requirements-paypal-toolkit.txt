@@ -1,0 +1,8 @@
+# Official PayPal Agent Toolkit for Python (https://github.com/paypal/agent-toolkit, Apache-2.0).
+# Install it WITHOUT dependencies:
+#     pip install --no-deps -r requirements-paypal-toolkit.txt
+# Why: Scope2Cash uses only the framework-agnostic core (paypal_agent_toolkit.shared: tool catalog, pydantic
+# argument schemas, request handlers), which needs nothing beyond pydantic + httpx from requirements.txt.
+# The package metadata also hard-pins its optional framework adapters (openai-agents==0.0.2, langchain==0.3.23,
+# crewai-tools==0.13.2); crewai-tools 0.13.2 has no build for Python 3.13 and the pins would downgrade other libs.
+paypal-agent-toolkit==1.11.0

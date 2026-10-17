@@ -8,6 +8,7 @@ Live: PayPal Invoicing API v2 (sandbox by default), checked against PayPal's pub
   POST /v2/invoicing/invoices/{id}/send      200/202 -> {href, rel: "payer-view", method}
   GET  /v2/invoicing/invoices/{id}           status, detail.metadata.recipient_view_url, due_amount, payments
   POST /v2/invoicing/invoices/{id}/remind    204 No Content
+  POST /v1/notifications/verify-webhook-signature   postback check of a webhook delivery -> {verification_status}
 Note from the spec: custom `subject`/`note` on send/remind are not honoured (PayPal uses its own email text),
 so Scope2Cash's personalised reminder is a separate draft the freelancer sends through their own channel.
 
@@ -147,7 +148,8 @@ class PayPalInvoicing:
                 _token_cache[self.s.paypal_client_id] = (tok, exp)
             return tok
 
-    def _call(self, method: str, path: str, *, json: Any = None, idempotency_key: str = "", prefer: str = "") -> httpx.Response:
+    def _call(self, method: str, path: str, *, json: Any = None, idempotency_key: str = "", prefer: str = "",
+              content: Optional[bytes] = None) -> httpx.Response:
         def headers(tok: str) -> Dict[str, str]:
             h = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json", "Accept": "application/json"}
             if idempotency_key:
@@ -156,14 +158,15 @@ class PayPalInvoicing:
                 h["Prefer"] = prefer
             return h
 
+        body: Dict[str, Any] = {"content": content} if content is not None else {"json": json}
         try:
             return http.request(PROVIDER, method, f"{self.base}{path}", timeout_s=self.s.paypal_timeout_s, retries=2,
-                                json=json, headers=headers(self._token()), describe_error=describe_error)
+                                headers=headers(self._token()), describe_error=describe_error, **body)
         except AdapterError as e:
             if e.status != 401:
                 raise
             return http.request(PROVIDER, method, f"{self.base}{path}", timeout_s=self.s.paypal_timeout_s, retries=1,
-                                json=json, headers=headers(self._token(force=True)), describe_error=describe_error)
+                                headers=headers(self._token(force=True)), describe_error=describe_error, **body)
 
     # ---- operations
     def next_invoice_number(self) -> str:
@@ -215,6 +218,55 @@ class PayPalInvoicing:
             return inv
 
 
+    def cancel(self, inv: Invoice, note: str = "") -> Invoice:
+        body: Dict[str, Any] = {"send_to_recipient": True, "send_to_invoicer": True}
+        if note:
+            body["note"] = note[:4000]
+        self._call("POST", f"/v2/invoicing/invoices/{inv.id}/cancel", json=body, idempotency_key=str(uuid.uuid4()))
+        try:
+            return self.refresh(inv)
+        except AdapterError:
+            return inv.model_copy(update={"status": "CANCELLED", "provider_status": "CANCELLED"})
+
+    # ---- webhooks
+    def verify_webhook_signature(self, raw_body: bytes, headers: Dict[str, str], webhook_id: str) -> str:
+        """Postback verification (POST /v1/notifications/verify-webhook-signature). PayPal's guide warns that
+        re-serialising the event can break verification, so the raw delivery bytes are spliced into the request
+        verbatim as `webhook_event`. Returns "SUCCESS" or "FAILURE"."""
+        h = {k.lower(): v for k, v in headers.items()}
+        fields = {"auth_algo": h.get("paypal-auth-algo", ""), "cert_url": h.get("paypal-cert-url", ""),
+                  "transmission_id": h.get("paypal-transmission-id", ""), "transmission_sig": h.get("paypal-transmission-sig", ""),
+                  "transmission_time": h.get("paypal-transmission-time", ""), "webhook_id": webhook_id}
+        missing = [k for k, v in fields.items() if not v]
+        if missing:
+            return "FAILURE"
+        import json as _json
+        head = _json.dumps(fields)[:-1]  # drop the closing brace, then append the raw event
+        payload = head.encode() + b', "webhook_event": ' + raw_body.strip() + b"}"
+        r = self._call("POST", "/v1/notifications/verify-webhook-signature", content=payload)
+        return str((r.json() if r.content else {}).get("verification_status", "FAILURE"))
+
+
+def to_paypal_invoice(inv: Invoice) -> Dict[str, Any]:
+    """Render a stored invoice in PayPal Invoicing v2 shape (used by the mock toolkit client and mock webhooks)."""
+    raw = {"OVERDUE": "UNPAID"}.get(inv.status, inv.status)  # PayPal has no OVERDUE status: past-due invoices stay UNPAID/SENT
+    due = inv.amount_due if inv.amount_due is not None else (0.0 if inv.status in ("PAID", "CANCELLED", "REFUNDED") else inv.amount)
+    return {
+        "id": inv.id, "status": raw,
+        "detail": {"invoice_number": inv.number, "currency_code": inv.currency, "reference": inv.milestone,
+                   "memo": f"Created by Scope2Cash for {inv.project}" if inv.project else "Created by Scope2Cash",
+                   "payment_term": {"due_date": inv.due_date},
+                   "metadata": {"recipient_view_url": inv.payer_link} if inv.payer_link else {}},
+        "primary_recipients": [{"billing_info": {"email_address": inv.client_email,
+                                                 **({"business_name": inv.client_name} if inv.client_name else {})}}],
+        "amount": {"currency_code": inv.currency, "value": f"{inv.amount:.2f}"},
+        "due_amount": {"currency_code": inv.currency, "value": f"{due:.2f}"},
+        "links": [{"href": f"https://api-m.sandbox.paypal.com/v2/invoicing/invoices/{inv.id}", "rel": "self", "method": "GET"}],
+        # Not a PayPal field: local context for the mock (PayPal derives "overdue" from due_date; demo invoices simulate it).
+        "x_scope2cash": {"days_overdue": inv.days_overdue, "client": inv.client_name, "project": inv.project, "mock": True},
+    }
+
+
 class MockPayments:
     mode = "mock"
 
@@ -234,6 +286,9 @@ class MockPayments:
 
     def remind(self, inv):
         return inv
+
+    def cancel(self, inv, note=""):
+        return inv.model_copy(update={"status": "CANCELLED", "provider_status": "CANCELLED", "days_overdue": 0})
 
 
 def get_payments():
