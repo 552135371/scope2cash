@@ -16,7 +16,7 @@ COMPONENTS = [
     (r"\b(booking|book (?:or|a|class)|books appointments|calendar|appointments?|schedul|reservations?|reservas?|agendamento)", "Booking & calendar", ["Availability calendar", "Booking confirmation flow"], 14, "core"),
     (r"\b(notifications?|push|reminders?|sms|notificaci\w+|notifica\w+)\b", "Notifications", ["Transactional emails", "Reminder triggers"], 6, "core"),
     (r"\b(e-?commerce|online shop|store front|storefront|shopping cart|cart|product catalog|shopify|woocommerce|carrito|carrinho|pedidos|orders?|men[uú]|listings?|marketplace)", "E-commerce catalog & cart", ["Product catalog", "Cart & order flow"], 18, "core"),
-    (r"\b(maps?|gps|geolocation|location tracking|nearby|mapa)\b", "Maps & location", ["Map view", "Location search"], 10, "core"),
+    (r"\b(maps?|gps|geolocation|location tracking|mapa)\b", "Maps & location", ["Map view", "Location search"], 10, "core"),
     (r"\b(chat|messaging|inbox|real-?time)\b", "Real-time messaging", ["1:1 chat", "Read receipts & presence"], 16, "core"),
     (r"\b(cms|blog|content management|articles)\b", "CMS & content", ["Content model", "Editor workflow"], 8, "core"),
     (r"\b(multi-?lingual|multi-?language|translations?|i18n|localization|bilingual)", "Localization", ["String extraction", "2 languages"], 6, "core"),
@@ -25,6 +25,7 @@ COMPONENTS = [
     (r"\b(upload|attachments?|files?|documents?|pdf)\b", "File handling", ["Uploads & storage", "PDF export"], 6, "core"),
     (r"\b(reviews?|ratings?)\b", "Reviews & ratings", ["Review submission", "Moderation"], 6, "core"),
     (r"\b(integrat|zapier|crm|hubspot|salesforce|airtable|google sheets|notion|slack|webhook|api)\b", "Third-party integrations", ["API integration", "Data sync"], 10, "core"),
+    (r"\b(contact forms?|lead forms?|sign-?up forms?|quote forms?)\b", "Forms & lead capture", ["Contact form with spam protection", "Email notification"], 4, "core"),
     (r"\b(landing page|marketing site|website|seo|wordpress|webflow|\d+-page)\b", "Marketing website", ["Responsive landing page", "Basic SEO setup"], 12, "core"),
 ]
 DESIGN = [
@@ -173,10 +174,15 @@ def _first_sentence(text: str) -> str:
         return text[:220]
     pats = [c[0] for c in COMPONENTS] + [c[0] for c in DESIGN] + [c[0] for c in DATA] + [c[0] for c in AUTOMATION]
     def score(x: str) -> int:
-        return sum(1 for p in pats if re.search(p, x.lower())) + (2 if re.search(r"(?i)\b(need|want|looking for|necesito|queremos|build)\b", x) else 0)
+        return sum(1 for p in pats if re.search(p, x.lower()))
+    goal = next((x for x in sentences if re.search(r"(?i)\b(need|want|looking for|necesito|queremos|build(?:ing)?|opening)\b", x)), None)
     best = max(sentences, key=lambda x: (score(x), -sentences.index(x)))
+    if goal and goal != best and len(goal.split()) < 14:
+        best = goal + " " + best
+    elif goal and score(goal) >= score(best) - 1:
+        best = goal
     best = re.sub(r"(?i)^(hi|hello|hey|hola)[!,.]?\s+", "", best)
-    return best[:220] + ("..." if len(best) > 220 else "")
+    return best[:240] + ("..." if len(best) > 240 else "")
 
 
 def contact_name(text: str) -> Optional[str]:
@@ -285,7 +291,8 @@ def mock_scope(text: str) -> Dict[str, Any]:
         if any("Payments" in c[0] for c in adv) and ptype in ("ios", "mobile") and re.search(r"subscription|membership|paywall|class packs?|premium", t):
             risks.append("Digital subscriptions sold in-app must use Apple/Google in-app purchase (15-30% store fee)")
 
-    vague = words < 35 or len(comps) <= 1 and words < 60
+    specificity = len(comps) + (budget is not None) + (deadline is not None)
+    vague = words < 25 or (specificity <= 1 and words < 60)
     confidence = round(max(0.25, min(0.9, 0.35 + 0.01 * min(words, 120) * 0.4 + 0.06 * len(comps) - 0.05 * len(risks))), 2)
     if vague:
         confidence = min(confidence, 0.45)
@@ -314,7 +321,7 @@ def mock_scope(text: str) -> Dict[str, Any]:
         assumptions = ["Estimate is a placeholder until a short paid discovery call"] + assumptions
         risks.append("Brief is thin; hours could move ±40% after discovery")
     if deadline:
-        assumptions.append(f"Target date mentioned by client: {deadline}")
+        assumptions.append(f"Target date mentioned by client: {pretty_deadline(deadline)}")
     if re.search(r"\b(payments?|stripe|paypal|checkout|billing|pagos?)\b", t) and not any("in-app purchase" in r for r in risks):
         risks.append("Payment-provider onboarding (KYC) can take days; start it during milestone 1")
     if not risks:
@@ -322,7 +329,7 @@ def mock_scope(text: str) -> Dict[str, Any]:
                       "design": "Taste is subjective; agree on 2-3 reference brands before the first concepts",
                       "data": "Target sites can change layout or block scraping",
                       }.get(ptype, "Late content (copy, photos, accounts) is the most common cause of launch delays"))
-    feats = ", ".join(c[0].split(" ")[0].lower() for c in comps[:4])
+    feats = ", ".join(c[0].split(" & ")[0].split(" (")[0].lower() for c in comps[:4] if c[0] != "Core feature build")
     noun = project_noun(text)
     phrase = TYPE_PHRASE[ptype]
     if ptype == "web" and re.search(r"\b(website|wordpress|webflow|landing page|\d+-page)\b", t) and not re.search(r"\b(app|portal|platform|marketplace|saas)\b", t):
@@ -335,7 +342,7 @@ def mock_scope(text: str) -> Dict[str, Any]:
         title = f"Custom {phrase}"
     return {"project_title": title, "client_name": client, "summary": _first_sentence(text) + (f" Key areas: {feats}." if feats else ""),
             "project_type": ptype, "milestones": ms, "assumptions": assumptions, "risks": risks[:5], "open_questions": questions[:6],
-            "confidence": confidence, "client_budget": budget, "deadline": deadline, "language": lang,
+            "confidence": confidence, "client_budget": budget, "deadline": pretty_deadline(deadline) or None, "language": lang,
             "contact_name": contact_name(text)}
 
 
@@ -396,6 +403,12 @@ def ground_pricing(lo: float, hi: float, snippets: List[str]) -> Tuple[float, fl
 
 
 # ------------------------------------------------------------------ copy
+def _lc(x: str) -> str:
+    """Lower-case the first letter unless the word is an acronym (UX, API, iOS)."""
+    w = x.split(" ", 1)[0]
+    return x if (len(w) > 1 and w[1].isupper()) or w[:1].islower() else x[:1].lower() + x[1:]
+
+
 def mock_cover(scope: Scope, total: float, rate: float, freelancer: str) -> Dict[str, Any]:
     first = scope.milestones[0]
     hours = sum(m.est_hours for m in scope.milestones)
@@ -408,7 +421,7 @@ def mock_cover(scope: Scope, total: float, rate: float, freelancer: str) -> Dict
     q = f"\n\nOne question before we start: {scope.open_questions[0][0].lower() + scope.open_questions[0][1:]}" if scope.open_questions else ""
     return {"cover_message": (
         f"{hello}\n\nThanks for the brief. I've scoped \"{scope.project_title}\" as {len(scope.milestones)} milestones, starting with "
-        f"{first.title.lower()} ({', '.join(first.deliverables[:2]).lower()}). The total is ${total:,.0f} for about {hours:.0f} hours at "
+        f"{_lc(first.title)} ({', '.join(_lc(d) for d in first.deliverables[:2])}). The total is ${total:,.0f} for about {hours:.0f} hours at "
         f"${rate:.0f}/h.{deadline}\n\nEach milestone gets its own PayPal invoice, so you only pay as work is delivered and approved."
         f"{q}\n\nBest,\n{freelancer}")}
 

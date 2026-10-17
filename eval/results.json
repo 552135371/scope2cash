@@ -30,7 +30,7 @@
       "mock"
     ],
     "tokens": 0,
-    "ms": 9
+    "ms": 10
   },
   "cases": [
     {
@@ -62,7 +62,7 @@
         "confident_when_clear": "confidence 0.9",
         "flags_scope_risk": "Possible add-ons mentioned ('bonus'); price them as optional milestones; AI answer quality is subjective; agree acceptance examples up front; Digital subscriptions sold in-app must use Apple/Google in",
         "no_invented_budget": "got None",
-        "deadline_detected": "got 'march'",
+        "deadline_detected": "got 'March'",
         "client_name": "got 'Bloom Pilates Studio'",
         "price_sourced_or_labelled": "grounded=True, evidence=['$40/h', '$55/h', '$75/h']",
         "quote_arithmetic": "sum%=100.0",
@@ -75,7 +75,7 @@
         "confidence": 0.9,
         "questions": 2,
         "budget": null,
-        "deadline": "march",
+        "deadline": "March",
         "language": "en",
         "rate": 75.0,
         "total": 10350.0,
@@ -117,7 +117,7 @@
         "no_giant_milestone": "largest milestone <= 70% of hours",
         "confident_when_clear": "confidence 0.78",
         "budget_extracted": "got 12000.0, want 12000",
-        "deadline_detected": "got 'the end of january'",
+        "deadline_detected": "got 'end of January'",
         "client_name": "got 'Ledgerly'",
         "price_sourced_or_labelled": "grounded=True, evidence=['$50/h', '$60/h', '$100/h']",
         "quote_arithmetic": "sum%=99.9",
@@ -130,7 +130,7 @@
         "confidence": 0.78,
         "questions": 1,
         "budget": 12000.0,
-        "deadline": "the end of january",
+        "deadline": "end of January",
         "language": "en",
         "rate": 85.0,
         "total": 7820.0,
@@ -565,7 +565,7 @@
         "no_giant_milestone": "largest milestone <= 70% of hours",
         "confident_when_clear": "confidence 0.86",
         "budget_extracted": "got 20000.0, want 20000",
-        "deadline_detected": "got 'q2'",
+        "deadline_detected": "got 'Q2'",
         "client_name": "got 'FitNest'",
         "price_sourced_or_labelled": "grounded=True, evidence=['$45/h', '$70/h', '$95/h']",
         "quote_arithmetic": "sum%=100.1",
@@ -578,7 +578,7 @@
         "confidence": 0.86,
         "questions": 1,
         "budget": 20000.0,
-        "deadline": "q2",
+        "deadline": "Q2",
         "language": "en",
         "rate": 82.0,
         "total": 10920.0,
@@ -589,7 +589,7 @@
         "mock"
       ],
       "tokens": 0,
-      "ms": 0,
+      "ms": 1,
       "warnings": [],
       "error": ""
     },
@@ -616,27 +616,27 @@
       "details": {
         "milestones_3_to_7": "3 milestones",
         "project_type": "got web, want ['web']",
-        "hours_in_range": "62 h, want 20-70",
+        "hours_in_range": "56 h, want 20-70",
         "no_giant_milestone": "largest milestone <= 70% of hours",
         "confident_when_clear": "confidence 0.61",
         "budget_extracted": "got 1500.0, want 1500",
-        "budget_gap_explained": "Quote is $3,770 above the client's stated budget ($1,500).",
-        "deadline_detected": "got 'november 15'",
+        "budget_gap_explained": "Quote is $3,260 above the client's stated budget ($1,500).",
+        "deadline_detected": "got 'November 15'",
         "price_sourced_or_labelled": "grounded=True, evidence=['$50/h', '$60/h', '$100/h']",
         "quote_arithmetic": "sum%=100.0",
-        "cover_no_invented_prices": "found [85, 5270], allowed [85, 5270]"
+        "cover_no_invented_prices": "found [85, 4760], allowed [85, 4760]"
       },
       "summary": {
         "type": "web",
         "milestones": 3,
-        "hours": 62,
+        "hours": 56,
         "confidence": 0.61,
         "questions": 1,
         "budget": 1500.0,
-        "deadline": "november 15",
+        "deadline": "November 15",
         "language": "en",
         "rate": 85.0,
-        "total": 5270.0,
+        "total": 4760.0,
         "grounded": true,
         "client": "Client"
       },

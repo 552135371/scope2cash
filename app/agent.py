@@ -56,7 +56,7 @@ def build_scope(requirement: str) -> Tuple[Scope, List[TraceStep]]:
     if stated_budget and not scope.client_budget:
         scope.client_budget = stated_budget
     if stated_deadline and not scope.deadline:
-        scope.deadline = stated_deadline
+        scope.deadline = H.pretty_deadline(stated_deadline)
     hours = sum(m.est_hours for m in scope.milestones)
     return scope, [_trace("Extract scope & milestones", r, f"{len(scope.milestones)} milestones · {hours:.0f} h · {why}")]
 

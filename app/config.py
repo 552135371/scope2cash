@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
+if os.getenv("SCOPE2CASH_ENV_FILE"):  # optional extra env file kept outside the repo
+    load_dotenv(os.environ["SCOPE2CASH_ENV_FILE"])
 
 # Verified against https://tokenfactory.nebius.com/api/public/models_info on 2026-10-17.
 DEFAULT_MODEL_FAST = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"

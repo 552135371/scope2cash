@@ -1,0 +1,26 @@
+[
+  {
+    "id": "ho_shopify_migration",
+    "title": "Hold-out: store migration",
+    "brief": "Hey, we run an online plant shop on WooCommerce (about 300 products) and want to move to Shopify. Need products, customers and order history migrated, the theme customised to match our current look, and redirects so we don't lose SEO. Would like to switch before Black Friday.",
+    "expect": {"project_type": ["web"], "hours": [30, 120], "vague": false, "creep": false, "budget": null, "deadline": true}
+  },
+  {
+    "id": "ho_german_booking",
+    "title": "Hold-out: German brief",
+    "brief": "Hallo! Wir sind eine kleine Physiotherapie-Praxis in Berlin. Wir brauchen eine Webseite mit Online-Terminbuchung, Erinnerungen per SMS und einem Bereich, wo Patienten ihre Rechnungen sehen können. Danke und viele Grüße, Anna",
+    "expect": {"project_type": ["web"], "hours": [40, 160], "vague": false, "creep": false, "budget": null, "deadline": false, "language": "de"}
+  },
+  {
+    "id": "ho_vague_ai",
+    "title": "Hold-out: vague AI ask",
+    "brief": "We want to add AI to our business. What can you do and what would it cost?",
+    "expect": {"project_type": ["web", "automation"], "hours": [10, 200], "vague": true, "creep": false, "budget": null, "deadline": false}
+  },
+  {
+    "id": "ho_zapier_invoices",
+    "title": "Hold-out: Zapier bookkeeping",
+    "brief": "Looking for a Zapier or Make.com expert. When a client pays a Stripe invoice, create the matching entry in Xero, save the PDF receipt to Google Drive, and post a summary to our Slack #finance channel. Weekly digest email would be a nice to have. Budget about $500.",
+    "expect": {"project_type": ["automation"], "hours": [8, 35], "vague": false, "creep": true, "budget": 500, "deadline": false}
+  }
+]

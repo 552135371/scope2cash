@@ -14,6 +14,7 @@ with sync_playwright() as p:
     errors = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.goto(URL); pg.wait_for_selector(".badge")
+    pg.add_style_tag(content=".topbar{position:static}")  # keep the sticky header out of element screenshots
     pg.click("#sample"); pg.screenshot(path=OUT / "01_brief.png")
     pg.click("#go-scope"); pg.wait_for_selector("#go-price"); pg.wait_for_timeout(500)
     pg.locator("#s2").screenshot(path=OUT / "02_scope.png")
@@ -33,5 +34,11 @@ with sync_playwright() as p:
     pg.screenshot(path=OUT / "06_reminder.png")
     pg.click("#m-close")
     pg.screenshot(path=OUT / "00_full.png", full_page=True)
+    # A thin brief: the agent lowers confidence and asks before quoting.
+    pg.goto(URL); pg.wait_for_selector(".badge"); pg.add_style_tag(content=".topbar{position:static}")
+    pg.wait_for_function("document.querySelectorAll('#samples option').length > 0")
+    idx = pg.evaluate("[...document.querySelectorAll('#samples option')].findIndex(o => o.textContent.includes('Vague'))")
+    pg.select_option("#samples", str(idx)); pg.click("#go-scope"); pg.wait_for_selector("#go-price"); pg.wait_for_timeout(500)
+    pg.locator("#s2").screenshot(path=OUT / "07_vague_brief.png")
     b.close()
     print("errors:", errors)

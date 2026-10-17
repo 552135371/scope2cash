@@ -115,8 +115,11 @@ def run_case(case: Dict[str, Any]) -> CaseResult:
     return res
 
 
-def run(only: Optional[List[str]] = None) -> List[CaseResult]:
-    cases = [c for c in load_briefs() if not only or c["id"] in only]
+HOLDOUT = ROOT / "eval" / "briefs_holdout.json"
+
+
+def run(only: Optional[List[str]] = None, path: Path = BRIEFS) -> List[CaseResult]:
+    cases = [c for c in load_briefs(path) if not only or c["id"] in only]
     return [run_case(c) for c in cases]
 
 
@@ -135,21 +138,23 @@ def scorecard(results: List[CaseResult]) -> Dict[str, Any]:
             "tokens": sum(r.tokens for r in results), "ms": sum(r.ms for r in results)}
 
 
-def to_markdown(results: List[CaseResult], card: Dict[str, Any]) -> str:
+def to_markdown(results: List[CaseResult], card: Dict[str, Any], label: str = "main set (eval/briefs.json)") -> str:
     s = config.get_settings()
-    when = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
+    when = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M (UTC%z)")
     llm = "live (Nebius Token Factory)" if s.llm_live else "mock (offline heuristics)"
     search = "live (Tavily)" if s.search_live else "mock (labelled samples)"
-    lines = [f"# Scope2Cash eval results", "",
+    lines = [f"# Scope2Cash eval results: {label}", "",
              f"- Run: {when}", f"- LLM: {llm}; models fast=`{s.model_fast}`, main=`{s.model_main}`, deep=`{s.model_deep}`",
              f"- Search: {search}", f"- Modes seen in traces: {', '.join(card['modes'])}",
              f"- **Score: {card['passed_checks']}/{card['total_checks']} checks ({card['pass_rate'] * 100:.0f}%), "
              f"{card['perfect_cases']}/{card['cases']} cases perfect**", ""]
     if not s.llm_live:
         lines += ["> Mock mode exercises the pipeline, guardrails and scoring offline. It is a regression gate for the "
-                  "harness and heuristics, not evidence of model quality (the heuristics were written alongside these cases); "
-                  "rerun with `--mode live` once keys are set.", ""]
-    lines += ["| Case | Score | Type | Hours | Ms | Conf. | Qs | Budget | Deadline | Rate | Quote | Grounded | Time |",
+                  "harness and heuristics, not evidence of model quality"
+                  + (" (the heuristics were written alongside these cases)" if "hold-out" not in label else
+                     " (these hold-out briefs were written after the heuristics and never used to tune them)")
+                  + "; rerun with `--mode live` once keys are set.", ""]
+    lines += ["| Case | Score | Type | Hours | Milestones | Conf. | Qs | Budget | Deadline | Rate | Quote | Grounded | Time |",
               "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in results:
         m = r.summary

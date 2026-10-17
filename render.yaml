@@ -1,0 +1,36 @@
+# Render Blueprint (free tier). Deploy: Render Dashboard > New > Blueprint > pick this repo.
+# Secrets use `sync: false`, so Render prompts for them once and they never live in git.
+# Leave any key empty to run that adapter in mock mode.
+services:
+  - type: web
+    name: scope2cash
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_INVOICER_EMAIL
+        sync: false
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: MODEL_FAST
+        value: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B
+      - key: MODEL_MAIN
+        value: nvidia/nemotron-3-super-120b-a12b
+      - key: MODEL_DEEP
+        value: nvidia/Nemotron-3-Ultra-550b-a55b
+      - key: FALLBACK_TO_MOCK
+        value: "1"
+      - key: FREELANCER_NAME
+        value: Huilin
+      # Free instances have an ephemeral filesystem: the SQLite demo store resets on redeploy/spin-down.
+      - key: SCOPE2CASH_DB
+        value: /tmp/scope2cash.db
