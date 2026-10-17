@@ -141,7 +141,7 @@ def scorecard(results: List[CaseResult]) -> Dict[str, Any]:
 def to_markdown(results: List[CaseResult], card: Dict[str, Any], label: str = "main set (eval/briefs.json)") -> str:
     s = config.get_settings()
     when = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M (UTC%z)")
-    llm = "live (Nebius Token Factory)" if s.llm_live else "mock (offline heuristics)"
+    llm = f"live ({s.llm_label})" if s.llm_live else "mock (offline heuristics)"
     search = "live (Tavily)" if s.search_live else "mock (labelled samples)"
     lines = [f"# Scope2Cash eval results: {label}", "",
              f"- Run: {when}", f"- LLM: {llm}; models fast=`{s.model_fast}`, main=`{s.model_main}`, deep=`{s.model_deep}`",

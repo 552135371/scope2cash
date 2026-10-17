@@ -13,6 +13,7 @@ URL = os.environ.get("S2C_URL", "http://localhost:8765/")
 with sync_playwright() as p:
     b = p.chromium.launch()
     pg = b.new_page(viewport={"width": 1440, "height": 900}, device_scale_factor=2)
+    pg.set_default_timeout(int(os.environ.get("S2C_TIMEOUT_MS", "30000")))  # live LLM steps can take 30-90 s
     errors = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.on("console", lambda m: m.type == "error" and errors.append("console: " + m.text))

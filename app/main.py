@@ -22,7 +22,7 @@ STATIC = Path(__file__).parent / "static"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # Validate configured Nemotron model IDs against GET /v1/models without blocking boot.
+    # Validate configured model IDs against the provider's GET /models without blocking boot.
     if config.get_settings().llm_live:
         threading.Thread(target=llm_mod.check_models, daemon=True).start()
     yield
@@ -53,7 +53,7 @@ def _budget_step() -> list:
     config.OFFLINE_THIS_REQUEST.set(True)
     return [TraceStep(step="Daily live budget", model="guard", mode="fallback", ms=0, tier="tool",  # type: ignore[arg-type]
                       note=f"cap {s.daily_live_cap} runs/day",
-                      warning="Today's live Nemotron/Tavily budget for this public demo is spent; "
+                      warning="Today's live LLM/Tavily budget for this public demo is spent; "
                               "this run used the offline heuristics. Run locally with your own keys for live results.")]
 
 
@@ -82,7 +82,7 @@ def health():
                         + (f"; live runs today {guard.live_runs_today()}/{s.daily_live_cap}" if s.daily_live_cap else ""))
     return {"ok": True, "version": VERSION, "warnings": warnings, "notices": notices, "demo_client_email": s.demo_client_email,
             "public_demo": s.public_demo, "adapters": {
-        "llm": {"mode": "live" if s.llm_live else "mock", "provider": "Nebius Token Factory", "models": models,
+        "llm": {"mode": "live" if s.llm_live else "mock", "provider": s.llm_label, "provider_id": s.llm_provider, "models": models,
                 "model_check": chk.as_dict()},
         "search": {"mode": "live" if s.search_live else "mock", "provider": "Tavily"},
         "payments": {"mode": "live" if s.payments_live else "mock", "provider": f"PayPal Invoicing v2 ({s.paypal_env})"},

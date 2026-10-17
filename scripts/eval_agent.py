@@ -3,7 +3,7 @@
 Runs every case in eval/agent_cases.json against the 8 SAMPLE invoices in a throwaway SQLite DB.
 Nothing is ever executed: the agent only *proposes*; this script checks the proposals.
   python scripts/eval_agent.py               # mock planner (offline, free)
-  python scripts/eval_agent.py --mode live   # Nemotron tool calling via NEBIUS_API_KEY (costs tokens); PayPal stays mock
+  python scripts/eval_agent.py --mode live   # LLM tool calling via DEEPSEEK_API_KEY (or NEBIUS/NVIDIA) (costs tokens); PayPal stays mock
 """
 import argparse
 import json
@@ -33,7 +33,7 @@ from app.demo_data import sample_invoices  # noqa: E402
 
 s = config.reload_settings()
 if args.mode == "live" and not s.llm_live:
-    sys.exit("live mode needs NEBIUS_API_KEY in .env")
+    sys.exit("live mode needs an LLM key (DEEPSEEK_API_KEY, NEBIUS_API_KEY or NVIDIA_API_KEY)")
 cases = json.loads((ROOT / "eval" / "agent_cases.json").read_text())["cases"]
 rows, passed = [], 0
 for c in cases:
@@ -56,6 +56,12 @@ lines = [f"# Scope2Cash collections-agent eval ({args.mode})", "",
          f"- Score: **{passed}/{len(cases)}** exact proposal sets (proposals only; nothing executed)", "",
          "| case | pass | expected | proposed | tool modes | ms |", "|---|---|---|---|---|---|"]
 fmt = lambda xs: "<br>".join(f"{t.replace('send_invoice_reminder', 'remind').replace('cancel_sent_invoice', 'cancel')} {n}" for t, n in xs) or "(none)"
+from app.adapters import llm as _llm  # noqa: E402
+if _llm.USAGE_TOTALS:
+    rep = _llm.usage_report()
+    print("usage:", json.dumps(rep))
+    lines[3:3] = [f"- LLM: {s.llm_label}, est. cost ${rep['est_cost_usd_peak']:.4f} (peak rates), "
+                  + ", ".join(f"{m} {t['calls']} calls/{t['prompt'] + t['completion']} tok" for m, t in rep["models"].items())]
 lines += [f"| {i} | {'yes' if ok else '**NO**'} | {fmt(w)} | {fmt(g)} | {m} | {ms} |" for i, ok, w, g, m, ms in rows]
 Path(args.out).write_text("\n".join(lines) + "\n")
 print("wrote", args.out)

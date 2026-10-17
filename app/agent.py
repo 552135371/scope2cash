@@ -1,7 +1,8 @@
 """Scope2Cash agent pipeline: requirement -> scope -> market pricing -> quote -> invoices -> reminders.
 
-Routing: Nemotron Nano (fast) extracts scope from routine briefs, Super (main) handles long/non-English briefs,
-price synthesis, proposals and reminders, and Ultra (deep) does negotiation coaching. Every LLM step has a
+Routing (tiers map to provider models, e.g. DeepSeek: fast = deepseek-flash/low effort, main = deepseek-flash,
+deep = deepseek-v4-pro/high effort; Nemotron: Nano/Super/Ultra): fast extracts scope from routine briefs, main handles
+long/non-English briefs, price synthesis, proposals and reminders, and deep does negotiation coaching. Every LLM step has a
 deterministic heuristic (app/heuristics.py) used in mock mode and as a visible fallback when a live call fails.
 """
 from __future__ import annotations
@@ -18,12 +19,19 @@ from .adapters.llm import LLMResult, get_llm
 from .adapters.search import get_search
 from .models import Invoice, LineItem, PricingReference, Quote, Scope, TraceStep
 
-SCOPE_SCHEMA = ('{"project_title": str, "client_name": str (or "Client"), "summary": str (<= 2 sentences), '
-                '"project_type": one of ios|mobile|web|automation|design|data, '
+SCOPE_SCHEMA = ('{"project_title": str, "client_name": str (the business/company name if stated, else the person\'s '
+                'first name, else "Client"; just the name, no location, role or extra words), '
+                '"summary": str (<= 2 sentences), '
+                '"project_type": one of ios|mobile|web|automation|design|data (data = scraping, ETL, data pipelines, '
+                'dashboards; automation = workflow tools like n8n/Zapier/Make and app-to-app integrations; web = websites '
+                'and web apps, including AI/chat features embedded in a website; ios = iOS-only app; mobile = '
+                'cross-platform/Android app; design = logos, branding, graphics), '
                 '"milestones": [{"title": str, "deliverables": [str], "est_hours": number, "weeks": number}] (3-6 items, '
                 'first is discovery, last is QA/handover), "assumptions": [str], "risks": [str], '
                 '"open_questions": [str] (questions to ask the client; more when the brief is vague), '
-                '"confidence": number 0-1 (how complete the brief is), "client_budget": number or null (only if stated), '
+                '"confidence": number 0-1 (how completely the brief defines the work: 0.6-0.85 when it names the platform '
+                'and concrete features or deliverables even if some details are open; 0.3-0.5 when key requirements are '
+                'missing; below 0.3 for one-line or "app like X" requests), "client_budget": number or null (only if stated), '
                 '"deadline": str or null (only if stated), "language": ISO 639-1 code of the brief}')
 
 
@@ -39,16 +47,32 @@ def _trace(step: str, r: LLMResult, note: str = "") -> TraceStep:
     return TraceStep(step=step, model=r.model, mode=r.mode, ms=r.ms, tier=r.tier, note=note, warning=r.warning, tokens=toks)  # type: ignore[arg-type]
 
 
+def _clean_client_name(name: str) -> str:
+    """Models sometimes return 'Sarah (Bloom Pilates, Austin)' or 'Lucía – Café Aroma': prefer the business name."""
+    name = (name or "").strip().strip('"')
+    m = re.match(r"^\s*([^()]+?)\s*\(([^,()]+)", name)
+    if m:
+        return m.group(2).strip()
+    parts = re.split(r"\s+[-–—|]\s+|\s+from\s+", name, maxsplit=1)
+    if len(parts) == 2 and parts[1].strip():
+        return parts[1].strip()
+    return re.sub(r",.*$", "", name).strip() or "Client"
+
+
 def build_scope(requirement: str) -> Tuple[Scope, List[TraceStep]]:
     llm = get_llm()
     tier, why = H.route_scope_tier(requirement)
     system = ("You are a senior freelance delivery lead. Turn a client's raw request into a fixed-scope plan a solo "
               "freelancer can quote. Be realistic about hours (a solo senior professional, not an agency). Never invent "
-              "budgets or deadlines the client didn't state. If the brief is vague, keep hours conservative, lower the "
+              "budgets or deadlines the client didn't state. Scope the smallest version that meets the stated needs (an "
+              "MVP / phase 1) using standard frameworks, plugins and managed services; don't pad hours or add features "
+              "the client didn't ask for - list them as optional phase-2 assumptions instead. "
+              "If the brief is vague, keep hours conservative, lower the "
               "confidence, and ask specific questions. Write the plan in English even if the brief is not.\n"
               f"Today is {date.today().isoformat()}. Return JSON exactly in this shape: {SCOPE_SCHEMA}")
     r = llm.complete_json(tier, system, requirement[:12000], lambda: H.mock_scope(requirement), validate=Scope.model_validate)
     scope = Scope.model_validate(r.data)
+    scope.client_name = _clean_client_name(scope.client_name)
     # Deterministic guardrails: budget/deadline are only kept if the client actually stated them.
     stated_budget, stated_deadline = H.extract_budget(requirement), H.extract_deadline(requirement)
     if scope.client_budget and not stated_budget:
@@ -154,7 +178,8 @@ def build_quote(scope: Scope, pricing: PricingReference, hourly_rate: float | No
     llm = get_llm()
     system = ("You write concise, warm client proposals for an independent freelancer. Return JSON {\"cover_message\": str} "
               "(<= 130 words, plain text, mention milestone-based PayPal invoicing, ask the single most important open "
-              f"question, sign as {s.freelancer_name}). Only mention the total and hourly rate given; never invent other prices.")
+              f"question, sign as {s.freelancer_name}). The only numbers with a currency you may write are the total and the hourly "
+              "rate given; never restate the client's budget or invent other prices.")
     payload = {"scope": scope.model_dump(exclude={"assumptions"}), "total": total, "rate": rate, "currency": s.currency}
     r1 = llm.complete_json("main", system, json.dumps(payload), lambda: H.mock_cover(scope, total, rate, s.freelancer_name),
                            validate=lambda d: _need(d.get("cover_message")))

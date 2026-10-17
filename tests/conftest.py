@@ -11,6 +11,7 @@ from app.adapters import http, llm, payments  # noqa: E402
 
 LIVE_ENV = {
     "SCOPE2CASH_FORCE_MOCK": "",
+    "LLM_PROVIDER": "nebius",
     "NEBIUS_API_KEY": "test-nebius-key",
     "NEBIUS_BASE_URL": "https://api.tokenfactory.nebius.com/v1/",
     "MODEL_FAST": config.DEFAULT_MODEL_FAST,

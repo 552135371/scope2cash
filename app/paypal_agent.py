@@ -2,7 +2,7 @@
 
 What we use from the toolkit, unchanged: its tool catalog (`paypal_agent_toolkit.shared.tools.tools`), the
 action-based allow-list (`Configuration` + `is_tool_allowed`), each tool's description and pydantic argument
-schema (sent to Nemotron as OpenAI-style function definitions, exactly like the toolkit's own
+schema (sent to the LLM as OpenAI-style function definitions, exactly like the toolkit's own
 `get_openai_chat_tools()`), and each tool's `execute` handler (argument validation, payload building, endpoint).
 
 What we supply: the transport object the handlers call (`post/get/put/delete`). Live, it rides on Scope2Cash's
@@ -311,8 +311,11 @@ Rules:
 2. send_invoice_reminder and cancel_sent_invoice are never executed by you: calling them queues a proposal that the
    freelancer approves. Propose only what the user asked for, at most one action per invoice. Never cancel unless the
    user explicitly asks to cancel. Prefer a gentle reminder for invoices 1-3 days late.
+   When the user asks to chase a named client for what they owe (no lateness threshold), include every invoice of that
+   client with an unpaid balance (SENT, UNPAID, OVERDUE or PARTIALLY_PAID), even if it is not due yet. When the user
+   gives a lateness threshold or says "overdue/late", include only invoices that match it.
 3. Only use invoice ids returned by the tools. Never invent amounts.
-4. Finish with a short plain-text answer (max 120 words): who owes what, what you queued for approval and why.
+4. Finish with a short plain-text answer (max 120 words, no Markdown: no asterisks or headings): who owes what, what you queued for approval and why.
    Never say a reminder was sent; say it is waiting for approval."""
 
 
@@ -331,7 +334,7 @@ def run_agent(instruction: str) -> AgentResponse:
         except AdapterError as e:
             if not s.fallback_to_mock:
                 raise
-            warning = f"Live Nemotron tool-calling failed ({e.message[:160]}); used the offline planner instead."
+            warning = f"Live {config.get_settings().llm_label} tool-calling failed ({e.message[:160]}); used the offline planner instead."
             run = Run()
             answer = _mock_plan(instruction, run)
             run.trace.insert(0, TraceStep(step="Collections agent", model=s.model_main, tier="main", mode="fallback",
@@ -349,13 +352,14 @@ def _finish(answer: str, run: Run) -> AgentResponse:
     for p in run.proposals:
         store.save_action(p)
         store.audit("agent_proposed", p.invoice_id, tool=p.tool, action_id=p.id)
+    answer = re.sub(r"\*\*(.+?)\*\*|__(.+?)__", lambda m: m.group(1) or m.group(2), answer)  # the UI renders plain text
     return AgentResponse(answer=answer.strip(), tool_calls=run.calls, proposals=run.proposals, trace=run.trace,
                          toolkit=toolkit_label())
 
 
 def _llm_loop(instruction: str, run: Run) -> Tuple[str, str, int]:
     s = config.get_settings()
-    llm = llm_mod.NebiusLLM()
+    llm = llm_mod.OpenAICompatLLM()
     model = llm.model_for("main")
     tools = tool_schemas()
     client = reader_client()

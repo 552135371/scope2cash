@@ -1,9 +1,9 @@
 """One-shot live smoke test for when API keys land in .env. Cheap and safe by default:
-  - Nebius: GET /v1/models (checks configured Nemotron IDs) + one tiny JSON call per tier, timed
+  - LLM provider: GET /models (checks configured model IDs) + one tiny JSON call per tier, timed
   - Tavily: one basic search (1 credit)
   - PayPal: OAuth token only (no invoice is created unless you pass --paypal-draft, which creates ONE sandbox
     draft that is never sent)
-Writes eval/live_observations.md so real latency/behaviour notes can feed the Nebius feedback doc.
+Writes eval/live_observations.md so real latency/behaviour notes can feed the provider feedback docs.
 Usage: python scripts/smoke_live.py [--paypal-draft]
 """
 import argparse
@@ -35,15 +35,15 @@ def log(msg):
 
 if s.llm_live:
     chk = llm.check_models()
-    log(f"Nebius /v1/models: ok={chk.ok} missing={chk.missing} notes={chk.notes} error={chk.error!r}")
+    log(f"{s.llm_label} /models: ok={chk.ok} missing={chk.missing} notes={chk.notes} error={chk.error!r}")
     log(f"NVIDIA models visible: {', '.join(chk.nvidia_available) or 'none'}")
-    client = llm.NebiusLLM()
+    client = llm.OpenAICompatLLM()
     for tier in ("fast", "main", "deep"):
         t0 = time.time()
         r = client.complete_json(tier, "Return JSON {\"ok\": true, \"model_tier\": str}.", f"tier={tier}", lambda: {"ok": False})
         log(f"{tier} {r.model}: mode={r.mode} {int((time.time() - t0) * 1000)} ms usage={r.usage} data={json.dumps(r.data)[:80]} {r.warning}")
 else:
-    log("Nebius: skipped (no NEBIUS_API_KEY)")
+    log("LLM: skipped (no provider key)")
 
 if s.search_live:
     t0 = time.time()

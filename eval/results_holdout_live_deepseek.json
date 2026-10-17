@@ -1,0 +1,259 @@
+{
+  "scorecard": {
+    "cases": 4,
+    "passed_checks": 55,
+    "total_checks": 55,
+    "pass_rate": 1.0,
+    "perfect_cases": 4,
+    "by_check": {
+      "asks_when_vague": "1/1",
+      "budget_extracted": "1/1",
+      "budget_gap_explained": "1/1",
+      "confident_when_clear": "3/3",
+      "cover_no_invented_prices": "4/4",
+      "deadline_detected": "4/4",
+      "deliverables_present": "4/4",
+      "flags_scope_risk": "1/1",
+      "hours_in_range": "4/4",
+      "language_detected": "1/1",
+      "milestones_3_to_7": "4/4",
+      "no_giant_milestone": "4/4",
+      "no_invented_budget": "3/3",
+      "price_has_citations": "4/4",
+      "price_sourced_or_labelled": "4/4",
+      "project_type": "4/4",
+      "quote_arithmetic": "4/4",
+      "three_negotiation_tips": "4/4"
+    },
+    "modes": [
+      "live",
+      "mock"
+    ],
+    "tokens": 26615,
+    "ms": 158613
+  },
+  "cases": [
+    {
+      "id": "ho_shopify_migration",
+      "passed": 13,
+      "total": 13,
+      "checks": {
+        "milestones_3_to_7": true,
+        "deliverables_present": true,
+        "project_type": true,
+        "hours_in_range": true,
+        "no_giant_milestone": true,
+        "confident_when_clear": true,
+        "no_invented_budget": true,
+        "deadline_detected": true,
+        "price_sourced_or_labelled": true,
+        "price_has_citations": true,
+        "quote_arithmetic": true,
+        "cover_no_invented_prices": true,
+        "three_negotiation_tips": true
+      },
+      "details": {
+        "milestones_3_to_7": "5 milestones",
+        "project_type": "got web, want ['web']",
+        "hours_in_range": "117 h, want 30-120",
+        "no_giant_milestone": "largest milestone <= 70% of hours",
+        "confident_when_clear": "confidence 0.7",
+        "no_invented_budget": "got None",
+        "deadline_detected": "got 'Before Black Friday (late November 2026)'",
+        "price_sourced_or_labelled": "grounded=True, evidence=['$50/h', '$60/h', '$100/h']",
+        "quote_arithmetic": "sum%=100.0",
+        "cover_no_invented_prices": "found [85, 9950], allowed [85, 9950]"
+      },
+      "summary": {
+        "type": "web",
+        "milestones": 5,
+        "hours": 117,
+        "confidence": 0.7,
+        "questions": 9,
+        "budget": null,
+        "deadline": "Before Black Friday (late November 2026)",
+        "language": "en",
+        "rate": 85.0,
+        "total": 9950.0,
+        "grounded": true,
+        "client": "Client"
+      },
+      "modes": [
+        "live",
+        "mock"
+      ],
+      "tokens": 6634,
+      "ms": 36366,
+      "warnings": [],
+      "error": ""
+    },
+    {
+      "id": "ho_german_booking",
+      "passed": 14,
+      "total": 14,
+      "checks": {
+        "milestones_3_to_7": true,
+        "deliverables_present": true,
+        "project_type": true,
+        "hours_in_range": true,
+        "no_giant_milestone": true,
+        "confident_when_clear": true,
+        "no_invented_budget": true,
+        "deadline_detected": true,
+        "language_detected": true,
+        "price_sourced_or_labelled": true,
+        "price_has_citations": true,
+        "quote_arithmetic": true,
+        "cover_no_invented_prices": true,
+        "three_negotiation_tips": true
+      },
+      "details": {
+        "milestones_3_to_7": "6 milestones",
+        "project_type": "got web, want ['web']",
+        "hours_in_range": "116 h, want 40-160",
+        "no_giant_milestone": "largest milestone <= 70% of hours",
+        "confident_when_clear": "confidence 0.55",
+        "no_invented_budget": "got None",
+        "deadline_detected": "got None",
+        "language_detected": "got de",
+        "price_sourced_or_labelled": "grounded=True, evidence=['$50/h', '$60/h', '$100/h']",
+        "quote_arithmetic": "sum%=100.0",
+        "cover_no_invented_prices": "found [], allowed [85, 9860]"
+      },
+      "summary": {
+        "type": "web",
+        "milestones": 6,
+        "hours": 116,
+        "confidence": 0.55,
+        "questions": 10,
+        "budget": null,
+        "deadline": null,
+        "language": "de",
+        "rate": 85.0,
+        "total": 9860.0,
+        "grounded": true,
+        "client": "Anna"
+      },
+      "modes": [
+        "live",
+        "mock"
+      ],
+      "tokens": 6580,
+      "ms": 39604,
+      "warnings": [],
+      "error": ""
+    },
+    {
+      "id": "ho_vague_ai",
+      "passed": 13,
+      "total": 13,
+      "checks": {
+        "milestones_3_to_7": true,
+        "deliverables_present": true,
+        "project_type": true,
+        "hours_in_range": true,
+        "no_giant_milestone": true,
+        "asks_when_vague": true,
+        "no_invented_budget": true,
+        "deadline_detected": true,
+        "price_sourced_or_labelled": true,
+        "price_has_citations": true,
+        "quote_arithmetic": true,
+        "cover_no_invented_prices": true,
+        "three_negotiation_tips": true
+      },
+      "details": {
+        "milestones_3_to_7": "3 milestones",
+        "project_type": "got automation, want ['web', 'automation']",
+        "hours_in_range": "48 h, want 10-200",
+        "no_giant_milestone": "largest milestone <= 70% of hours",
+        "asks_when_vague": "10 questions, confidence 0.15",
+        "no_invented_budget": "got None",
+        "deadline_detected": "got None",
+        "price_sourced_or_labelled": "grounded=True, evidence=['$40/h', '$60/h', '$90/h']",
+        "quote_arithmetic": "sum%=100.1",
+        "cover_no_invented_prices": "found [], allowed [75, 3600]"
+      },
+      "summary": {
+        "type": "automation",
+        "milestones": 3,
+        "hours": 48,
+        "confidence": 0.15,
+        "questions": 10,
+        "budget": null,
+        "deadline": null,
+        "language": "en",
+        "rate": 75.0,
+        "total": 3600.0,
+        "grounded": true,
+        "client": "Client"
+      },
+      "modes": [
+        "live",
+        "mock"
+      ],
+      "tokens": 6107,
+      "ms": 32639,
+      "warnings": [],
+      "error": ""
+    },
+    {
+      "id": "ho_zapier_invoices",
+      "passed": 15,
+      "total": 15,
+      "checks": {
+        "milestones_3_to_7": true,
+        "deliverables_present": true,
+        "project_type": true,
+        "hours_in_range": true,
+        "no_giant_milestone": true,
+        "confident_when_clear": true,
+        "flags_scope_risk": true,
+        "budget_extracted": true,
+        "budget_gap_explained": true,
+        "deadline_detected": true,
+        "price_sourced_or_labelled": true,
+        "price_has_citations": true,
+        "quote_arithmetic": true,
+        "cover_no_invented_prices": true,
+        "three_negotiation_tips": true
+      },
+      "details": {
+        "milestones_3_to_7": "4 milestones",
+        "project_type": "got automation, want ['automation']",
+        "hours_in_range": "13 h, want 8-35",
+        "no_giant_milestone": "largest milestone <= 70% of hours",
+        "confident_when_clear": "confidence 0.7",
+        "flags_scope_risk": "Xero contact/account mapping may be messier than expected, increasing build time; Duplicate Xero entries if Stripe retries or the trigger fires more than once \u2014 mitigated with idempotency checks; PDF ",
+        "budget_extracted": "got 500.0, want 500",
+        "budget_gap_explained": "Quote is $480 above the client's stated budget ($500). Dropping \"Slack notification and end-to-end testing\" brings it to $750.",
+        "deadline_detected": "got None",
+        "price_sourced_or_labelled": "grounded=True, evidence=['$40/h', '$60/h', '$90/h']",
+        "quote_arithmetic": "sum%=100.0",
+        "cover_no_invented_prices": "found [], allowed [75, 980]"
+      },
+      "summary": {
+        "type": "automation",
+        "milestones": 4,
+        "hours": 13,
+        "confidence": 0.7,
+        "questions": 8,
+        "budget": 500.0,
+        "deadline": null,
+        "language": "en",
+        "rate": 75.0,
+        "total": 980.0,
+        "grounded": true,
+        "client": "Client"
+      },
+      "modes": [
+        "live",
+        "mock"
+      ],
+      "tokens": 7294,
+      "ms": 50004,
+      "warnings": [],
+      "error": ""
+    }
+  ]
+}

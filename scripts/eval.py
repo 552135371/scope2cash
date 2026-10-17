@@ -2,10 +2,11 @@
 
 Usage:
   python scripts/eval.py                 # mock mode (offline, free)
-  python scripts/eval.py --mode live     # uses NEBIUS_API_KEY / TAVILY_API_KEY from .env (costs tokens/credits)
+  python scripts/eval.py --mode live     # uses DEEPSEEK_API_KEY (or NEBIUS/NVIDIA) / TAVILY_API_KEY from .env (costs tokens/credits)
   python scripts/eval.py --only vague_uber cafe_spanish --out eval/results.md
 """
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -31,7 +32,7 @@ from app.adapters import llm  # noqa: E402
 
 s = config.reload_settings()
 if args.mode == "live" and not s.llm_live:
-    sys.exit("live mode needs NEBIUS_API_KEY in .env (TAVILY_API_KEY optional)")
+    sys.exit("live mode needs an LLM key (DEEPSEEK_API_KEY / NEBIUS_API_KEY / NVIDIA_API_KEY); TAVILY_API_KEY optional")
 if s.llm_live:
     chk = llm.check_models()
     print("model check:", "ok" if chk.ok else f"PROBLEM {chk.missing or chk.error}", *chk.notes, sep="\n  ")
@@ -52,7 +53,15 @@ out = Path(args.out or ROOT / "eval" / ("results_holdout.md" if args.set == "hol
 out.parent.mkdir(parents=True, exist_ok=True)
 label = ("hold-out set (eval/briefs_holdout.json, never used to tune the heuristics)" if args.set == "holdout"
          else "main set (eval/briefs.json)")
-out.write_text(evals.to_markdown(results, card, label))
+md = evals.to_markdown(results, card, label)
+if args.mode != "mock" and llm.USAGE_TOTALS:
+    rep = llm.usage_report()
+    print("usage:", json.dumps(rep))
+    md += (f"\n## Token usage ({config.get_settings().llm_label})\n\n" + "\n".join(
+        f"- `{m}`: {t['calls']} calls, {t['prompt']} prompt ({t['cache_hit']} cached) + {t['completion']} completion "
+        f"({t['reasoning']} reasoning) tokens" for m, t in rep["models"].items())
+        + f"\n- Estimated cost at peak rates: ${rep['est_cost_usd_peak']:.4f}\n")
+out.write_text(md)
 out.with_suffix(".json").write_text(evals.to_json(results, card))
 print(f"wrote {out} and {out.with_suffix('.json')}")
 sys.exit(1 if card["pass_rate"] < args.min_pass_rate else 0)

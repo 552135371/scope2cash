@@ -19,6 +19,40 @@ DEFAULT_MODEL_FAST = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"
 DEFAULT_MODEL_MAIN = "nvidia/nemotron-3-super-120b-a12b"
 DEFAULT_MODEL_DEEP = "nvidia/Nemotron-3-Ultra-550b-a55b"
 
+# LLM providers (all OpenAI-compatible). `LLM_PROVIDER` picks one explicitly; otherwise the first provider whose key
+# is set wins, in this order: nebius, deepseek, nvidia. Keys are read from the environment only, never from code.
+PROVIDERS = {
+    "nebius": {"label": "Nebius Token Factory", "family": "NVIDIA Nemotron", "key_env": "NEBIUS_API_KEY",
+               "base_env": "NEBIUS_BASE_URL", "base": "https://api.tokenfactory.nebius.com/v1/",
+               "models": (DEFAULT_MODEL_FAST, DEFAULT_MODEL_MAIN, DEFAULT_MODEL_DEEP), "effort": ("", "", "")},
+    # Verified against GET https://api.deepseek.com/models and api-docs.deepseek.com/quick_start/pricing on 2026-10-17.
+    "deepseek": {"label": "DeepSeek API", "family": "DeepSeek V4", "key_env": "DEEPSEEK_API_KEY",
+                 "base_env": "DEEPSEEK_BASE_URL", "base": "https://api.deepseek.com",
+                 "models": ("deepseek-flash", "deepseek-flash", "deepseek-v4-pro"), "effort": ("low", "low", "high")},
+    "nvidia": {"label": "NVIDIA NIM", "family": "NVIDIA Nemotron", "key_env": "NVIDIA_API_KEY",
+               "base_env": "NVIDIA_BASE_URL", "base": "https://integrate.api.nvidia.com/v1",
+               "models": ("nvidia/nemotron-3.5-lightning-30b-a3b", "nvidia/nemotron-3-super-120b-a12b",
+                          "nvidia/nemotron-3-ultra-550b-a55b"), "effort": ("", "", "")},
+    "custom": {"label": "OpenAI-compatible", "family": "LLM", "key_env": "LLM_API_KEY", "base_env": "LLM_BASE_URL",
+               "base": "", "models": ("", "", ""), "effort": ("", "", "")},
+}
+
+
+def _provider() -> str:
+    explicit = (os.getenv("LLM_PROVIDER") or "").strip().lower()
+    if explicit in PROVIDERS:
+        return explicit
+    for name in ("nebius", "deepseek", "nvidia"):
+        if (os.getenv(PROVIDERS[name]["key_env"]) or "").strip():
+            return name
+    return "nebius"
+
+
+def _pv(i_field: str, idx: int = -1):
+    p = PROVIDERS[_provider()]
+    v = p[i_field]
+    return v[idx] if idx >= 0 else v
+
 
 def _get(name: str, default: str = "") -> str:
     return (os.getenv(name) or default).strip()
@@ -45,12 +79,21 @@ def _bool(name: str, default: bool) -> bool:
 
 @dataclass(frozen=True)
 class Settings:
-    # LLM: NVIDIA Nemotron on Nebius Token Factory (OpenAI-compatible)
+    # LLM: any OpenAI-compatible provider (DeepSeek, Nebius Token Factory, NVIDIA NIM, custom); see PROVIDERS
+    llm_provider: str = field(default_factory=_provider)
+    llm_label: str = field(default_factory=lambda: _pv("label"))
+    llm_family: str = field(default_factory=lambda: _pv("family"))
+    llm_api_key: str = field(default_factory=lambda: _get(_pv("key_env")))
+    llm_base_url: str = field(default_factory=lambda: _get(_pv("base_env"), _pv("base")))
     nebius_api_key: str = field(default_factory=lambda: _get("NEBIUS_API_KEY"))
     nebius_base_url: str = field(default_factory=lambda: _get("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/"))
-    model_fast: str = field(default_factory=lambda: _get("MODEL_FAST", DEFAULT_MODEL_FAST))
-    model_main: str = field(default_factory=lambda: _get("MODEL_MAIN", DEFAULT_MODEL_MAIN))
-    model_deep: str = field(default_factory=lambda: _get("MODEL_DEEP", DEFAULT_MODEL_DEEP))
+    model_fast: str = field(default_factory=lambda: _get("MODEL_FAST", _pv("models", 0)))
+    model_main: str = field(default_factory=lambda: _get("MODEL_MAIN", _pv("models", 1)))
+    model_deep: str = field(default_factory=lambda: _get("MODEL_DEEP", _pv("models", 2)))
+    # Per-tier reasoning effort (DeepSeek: low/high/max). LLM_REASONING_EFFORT, if set, overrides all tiers.
+    effort_fast: str = field(default_factory=lambda: _get("LLM_EFFORT_FAST", _pv("effort", 0)))
+    effort_main: str = field(default_factory=lambda: _get("LLM_EFFORT_MAIN", _pv("effort", 1)))
+    effort_deep: str = field(default_factory=lambda: _get("LLM_EFFORT_DEEP", _pv("effort", 2)))
     llm_timeout_s: float = field(default_factory=lambda: _float("LLM_TIMEOUT_S", 90))
     llm_max_retries: int = field(default_factory=lambda: _int("LLM_MAX_RETRIES", 2))
     llm_json_mode: bool = field(default_factory=lambda: _bool("LLM_JSON_MODE", True))
@@ -103,7 +146,10 @@ class Settings:
 
     @property
     def llm_live(self) -> bool:
-        return bool(self.nebius_api_key) and not self.force_mock and not OFFLINE_THIS_REQUEST.get()
+        return bool(self.llm_api_key and self.llm_base_url) and not self.force_mock and not OFFLINE_THIS_REQUEST.get()
+
+    def effort_for(self, tier: str) -> str:
+        return self.llm_reasoning_effort or {"fast": self.effort_fast, "main": self.effort_main, "deep": self.effort_deep}.get(tier, "")
 
     @property
     def search_live(self) -> bool:

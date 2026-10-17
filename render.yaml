@@ -9,8 +9,11 @@ services:
     healthCheckPath: /healthz
     autoDeployTrigger: commit
     envVars:
-      - key: NEBIUS_API_KEY
+      # LLM: DeepSeek by default (models deepseek-flash / deepseek-v4-pro). Set LLM_PROVIDER=nvidia + NVIDIA_API_KEY for NIM.
+      - key: DEEPSEEK_API_KEY
         sync: false
+      - key: LLM_PROVIDER
+        value: deepseek
       - key: TAVILY_API_KEY
         sync: false
       - key: PAYPAL_CLIENT_ID
@@ -26,12 +29,6 @@ services:
         sync: false
       - key: SCOPE2CASH_MOCK_WEBHOOK_SECRET
         generateValue: true
-      - key: MODEL_FAST
-        value: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B
-      - key: MODEL_MAIN
-        value: nvidia/nemotron-3-super-120b-a12b
-      - key: MODEL_DEEP
-        value: nvidia/Nemotron-3-Ultra-550b-a55b
       - key: FALLBACK_TO_MOCK
         value: "1"
       - key: FREELANCER_NAME
@@ -39,7 +36,7 @@ services:
       # Free instances have an ephemeral filesystem: the SQLite demo store resets on redeploy/spin-down.
       - key: SCOPE2CASH_DB
         value: /tmp/scope2cash.db
-      # Public-demo protection: 30 AI requests per IP per hour, a daily cap on live Nemotron/Tavily runs
+      # Public-demo protection: 30 AI requests per IP per hour, a daily cap on live LLM/Tavily runs
       # (then the app falls back to the offline heuristics with a visible warning), sandbox-only invoice recipients.
       - key: SCOPE2CASH_PUBLIC_DEMO
         value: "1"

@@ -1,7 +1,7 @@
 """LLM adapter.
 
-Live: NVIDIA Nemotron models on Nebius Token Factory through its OpenAI-compatible REST API
-(POST {base}/chat/completions, GET {base}/models, `Authorization: Bearer $NEBIUS_API_KEY`).
+Live: any OpenAI-compatible chat API, chosen by config (DeepSeek by default for the PayPal track; Nebius Token Factory
+and NVIDIA NIM for Nemotron): POST {base}/chat/completions, GET {base}/models, `Authorization: Bearer <provider key>`.
 Mock: deterministic heuristics supplied by the caller, so the full flow runs offline.
 
 Every call returns an LLMResult that says which model/tier ran, whether it was live, mock, or a live call that
@@ -22,7 +22,39 @@ from . import http
 from .http import AdapterError
 
 Tier = Literal["fast", "main", "deep"]
-PROVIDER = "Nebius Token Factory"
+
+
+# Process-wide token accounting, so eval scripts can report real usage and an approximate cost.
+USAGE_TOTALS: Dict[str, Dict[str, int]] = {}
+# USD per 1M tokens at DeepSeek *peak* rates (api-docs.deepseek.com/quick_start/pricing, 2026-10-17): conservative,
+# off-peak is half. (cache-hit input, cache-miss input, output)
+PRICES_PER_M = {"deepseek-flash": (0.006, 0.30, 1.20), "deepseek-v4-pro": (0.044, 1.32, 3.96)}
+
+
+def _account(model: str, j: Dict[str, Any]) -> None:
+    u = j.get("usage") or {} if isinstance(j, dict) else {}
+    t = USAGE_TOTALS.setdefault(model, {"calls": 0, "prompt": 0, "completion": 0, "cache_hit": 0, "reasoning": 0})
+    t["calls"] += 1
+    t["prompt"] += int(u.get("prompt_tokens") or 0)
+    t["completion"] += int(u.get("completion_tokens") or 0)
+    t["cache_hit"] += int(u.get("prompt_cache_hit_tokens") or 0)
+    t["reasoning"] += int((u.get("completion_tokens_details") or {}).get("reasoning_tokens") or 0)
+
+
+def usage_report() -> Dict[str, Any]:
+    cost, known = 0.0, True
+    for model, t in USAGE_TOTALS.items():
+        price = PRICES_PER_M.get(model)
+        if not price:
+            known = False
+            continue
+        hit, miss, out = price
+        cost += (t["cache_hit"] * hit + (t["prompt"] - t["cache_hit"]) * miss + t["completion"] * out) / 1e6
+    return {"models": USAGE_TOTALS, "est_cost_usd_peak": round(cost, 4), "all_priced": known}
+
+
+def _provider_label() -> str:
+    return config.get_settings().llm_label
 
 
 @dataclass
@@ -93,8 +125,8 @@ def check_models() -> ModelCheck:
         MODEL_CHECK = ModelCheck()
         return MODEL_CHECK
     try:
-        r = http.request("Nebius /v1/models", "GET", s.nebius_base_url.rstrip("/") + "/models",
-                         timeout_s=15, retries=1, headers={"Authorization": f"Bearer {s.nebius_api_key}"},
+        r = http.request(f"{s.llm_label} /models", "GET", s.llm_base_url.rstrip("/") + "/models",
+                         timeout_s=15, retries=1, headers={"Authorization": f"Bearer {s.llm_api_key}"},
                          describe_error=_describe_error)
         ids = [m.get("id", "") for m in r.json().get("data", []) if m.get("id")]
         MODEL_CHECK = resolve_models(s.models(), ids)
@@ -133,69 +165,80 @@ def extract_json(text: str) -> Dict[str, Any]:
 
 
 # ------------------------------------------------------------------ clients
-class NebiusLLM:
+class OpenAICompatLLM:
     mode = "live"
     _no_json_mode: set = set()
 
     def __init__(self) -> None:
         self.s = config.get_settings()
-        self.url = self.s.nebius_base_url.rstrip("/") + "/chat/completions"
+        self.provider = self.s.llm_label
+        self.url = self.s.llm_base_url.rstrip("/") + "/chat/completions"
+        self._tier_of: Dict[str, str] = {}
 
     def model_for(self, tier: Tier) -> str:
         return MODEL_CHECK.resolved.get(tier) or self.s.models()[tier]
 
-    def _body(self, model: str, messages: List[Dict[str, str]], json_mode: bool) -> Dict[str, Any]:
+    def _body(self, model: str, messages: List[Dict[str, str]], json_mode: bool, tier: str = "main") -> Dict[str, Any]:
         body: Dict[str, Any] = {"model": model, "messages": messages, "temperature": 0.2, "max_tokens": self.s.llm_max_tokens}
         if json_mode:
             body["response_format"] = {"type": "json_object"}
-        if self.s.llm_reasoning_effort:
-            body["reasoning_effort"] = self.s.llm_reasoning_effort
+        effort = self.s.effort_for(tier)
+        if effort:
+            body["reasoning_effort"] = effort
         return body
 
-    def _chat(self, model: str, messages: List[Dict[str, str]]) -> Dict[str, Any]:
-        headers = {"Authorization": f"Bearer {self.s.nebius_api_key}", "Content-Type": "application/json"}
+    def _chat(self, model: str, messages: List[Dict[str, str]], tier: str = "main") -> Dict[str, Any]:
+        PROVIDER = self.provider
+        headers = {"Authorization": f"Bearer {self.s.llm_api_key}", "Content-Type": "application/json"}
         json_mode = self.s.llm_json_mode and model not in self._no_json_mode
         try:
             r = http.request(PROVIDER, "POST", self.url, timeout_s=self.s.llm_timeout_s, retries=self.s.llm_max_retries,
-                             headers=headers, json=self._body(model, messages, json_mode), describe_error=_describe_error)
+                             headers=headers, json=self._body(model, messages, json_mode, tier), describe_error=_describe_error)
         except AdapterError as e:
             # Some models reject JSON mode; retry once in plain-text mode and remember that for this model.
             if json_mode and e.status in (400, 422) and "response_format" in e.message.lower():
                 self._no_json_mode.add(model)
                 r = http.request(PROVIDER, "POST", self.url, timeout_s=self.s.llm_timeout_s, retries=self.s.llm_max_retries,
-                                 headers=headers, json=self._body(model, messages, False), describe_error=_describe_error)
+                                 headers=headers, json=self._body(model, messages, False, tier), describe_error=_describe_error)
             else:
                 raise
         try:
-            return r.json()
+            j = r.json()
         except ValueError as e:
             raise AdapterError(PROVIDER, "response was not JSON") from e
+        _account(model, j)
+        return j
 
     def chat_tools(self, tier: Tier, messages: List[Dict[str, Any]], tools: List[Dict[str, Any]]) -> Dict[str, Any]:
         """One OpenAI-compatible tool-calling turn (docs.tokenfactory.nebius.com/ai-models-inference/function-calling).
         Returns the raw chat.completion JSON; the caller executes any `tool_calls` and loops."""
+        PROVIDER = self.provider
         body: Dict[str, Any] = {"model": self.model_for(tier), "messages": messages, "tools": tools, "tool_choice": "auto",
                                 "temperature": 0.1, "max_tokens": self.s.llm_max_tokens}
-        if self.s.llm_reasoning_effort:
-            body["reasoning_effort"] = self.s.llm_reasoning_effort
+        effort = self.s.effort_for(tier)
+        if effort:
+            body["reasoning_effort"] = effort
         r = http.request(PROVIDER, "POST", self.url, timeout_s=self.s.llm_timeout_s, retries=self.s.llm_max_retries,
-                         headers={"Authorization": f"Bearer {self.s.nebius_api_key}", "Content-Type": "application/json"},
+                         headers={"Authorization": f"Bearer {self.s.llm_api_key}", "Content-Type": "application/json"},
                          json=body, describe_error=_describe_error)
         try:
-            return r.json()
+            j = r.json()
         except ValueError as e:
             raise AdapterError(PROVIDER, "response was not JSON") from e
+        _account(body["model"], j)
+        return j
 
     def complete_json(self, tier: Tier, system: str, user: str, fallback: Callable[[], Dict[str, Any]],
                       validate: Optional[Callable[[Dict[str, Any]], Any]] = None) -> LLMResult:
         t0 = time.time()
+        PROVIDER = self.provider
         model = self.model_for(tier)
         messages = [{"role": "system", "content": system + "\nRespond with a single JSON object only, no prose."},
                     {"role": "user", "content": user}]
         usage: Dict[str, int] = {}
         try:
             for attempt in range(2):  # one repair round if the JSON is malformed or fails validation
-                j = self._chat(model, messages)
+                j = self._chat(model, messages, tier)
                 for k, v in (j.get("usage") or {}).items():
                     if isinstance(v, int):
                         usage[k] = usage.get(k, 0) + v
@@ -236,5 +279,8 @@ class MockLLM:
         return LLMResult(data, int((time.time() - t0) * 1000), "mock", self.model_for(tier), tier)
 
 
+NebiusLLM = OpenAICompatLLM  # backwards-compatible name
+
+
 def get_llm():
-    return NebiusLLM() if config.get_settings().llm_live else MockLLM()
+    return OpenAICompatLLM() if config.get_settings().llm_live else MockLLM()

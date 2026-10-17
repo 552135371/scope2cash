@@ -50,7 +50,7 @@ let SAMPLES = [];
   const h = await api("/api/health");
   const m = h.adapters.llm.models || {};
   const b = (label, a, extra = "") => `<span class="badge ${extra}" title="${esc(a.provider)}${a.models ? "\n" + esc(Object.entries(a.models).map(([k, v]) => k + ": " + v).join("\n")) : ""}"><span class="dot ${a.mode === "live" ? "live" : ""}"></span>${label} · ${a.mode}</span>`;
-  $("#badges").innerHTML = b("Nemotron @ Nebius", h.adapters.llm, h.warnings.length ? "warn" : "") + b("Tavily", h.adapters.search) + b("PayPal", h.adapters.payments)
+  $("#badges").innerHTML = b("LLM · " + (h.adapters.llm.provider || "?"), h.adapters.llm, h.warnings.length ? "warn" : "") + b("Tavily", h.adapters.search) + b("PayPal", h.adapters.payments)
     + (h.adapters.webhooks ? b("Webhooks", h.adapters.webhooks) : "");
   state.health = h; window.dispatchEvent(new CustomEvent("s2c:health", { detail: h }));
   state.demoEmail = h.demo_client_email;

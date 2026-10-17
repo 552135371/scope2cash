@@ -11,6 +11,7 @@ URL = os.environ.get("S2C_URL", "http://localhost:8765/")
 with sync_playwright() as p:
     b = p.chromium.launch()
     pg = b.new_page(viewport={"width": 1440, "height": 900}, device_scale_factor=2)
+    pg.set_default_timeout(int(os.environ.get("S2C_TIMEOUT_MS", "30000")))  # live LLM steps can take 30-90 s
     errors = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.goto(URL); pg.wait_for_selector(".badge")
@@ -22,6 +23,9 @@ with sync_playwright() as p:
     pg.locator("#s3").screenshot(path=OUT / "03_pricing.png")
     pg.click("#go-quote"); pg.wait_for_selector("#go-inv"); pg.wait_for_timeout(500)
     pg.locator("#s4").screenshot(path=OUT / "04_quote.png")
+    tr = pg.locator("#trace").locator("xpath=..")
+    tr.scroll_into_view_if_needed(); pg.wait_for_timeout(300)
+    tr.screenshot(path=OUT / "08_agent_trace.png")
     pg.click("#go-inv"); pg.wait_for_selector("#s5 [data-a=send]"); pg.wait_for_timeout(400)
     pg.locator("#s5 [data-a=send]").first.click(); pg.wait_for_selector("#s5 [data-a=pay]")
     pg.locator("#s5 [data-a=pay]").first.click(); pg.wait_for_timeout(300)
