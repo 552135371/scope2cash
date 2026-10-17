@@ -124,3 +124,16 @@ def test_mock_invoice_checkout_is_mock():
     r = c.post(f"/api/invoices/{inv.id}/checkout").json()
     assert r["invoice"]["order_id"].startswith("MOCKORDER") and r["trace"][0]["mode"] == "mock"
     assert c.post(f"/api/demo/{inv.id}/sandbox-card-pay").json()["invoice"]["status"] == "PAID"
+
+
+def test_base_url_prefers_public_then_render(monkeypatch):
+    from starlette.requests import Request
+    from app.checkout_routes import _base_url
+    req = Request({"type": "http", "scheme": "http", "server": ("internal", 10000), "path": "/", "headers": []})
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
+    monkeypatch.delenv("RENDER_EXTERNAL_URL", raising=False)
+    assert _base_url(req) == "http://internal:10000"
+    monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://scope2cash.onrender.com")
+    assert _base_url(req) == "https://scope2cash.onrender.com"
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://demo.example.com/")
+    assert _base_url(req) == "https://demo.example.com"

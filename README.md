@@ -2,6 +2,20 @@
 
 **From a messy client brief to a paid invoice: an AI agent that scopes, prices with cited market data, and bills by milestone through PayPal, with a human approving every outbound step.**
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/GITHUB_USERNAME/scope2cash)
+![Tests](https://img.shields.io/badge/tests-70%20passing-brightgreen) ![PayPal](https://img.shields.io/badge/PayPal-sandbox%20verified-003087) ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
+
+## For judges: 60-second tour
+- **What it does:** paste a client brief → milestone scope → market-grounded price → quote → one PayPal invoice per milestone → the client pays → the invoice flips to **PAID** through a verified webhook → a collections agent chases late payers. Every outbound action (send, remind, cancel) waits for a human click.
+- **PayPal APIs used** (Invoicing and Orders exercised against the real sandbox; real webhook deliveries need the deployed URL):
+  - **Invoicing v2:** OAuth client credentials, `generate-next-invoice-number`, create draft, send, get, remind, cancel, record payment.
+  - **Orders v2:** `CAPTURE` orders as per-milestone checkout links, then capture → invoice marked paid.
+  - **Webhooks:** `INVOICING.INVOICE.*` events, each checked with `POST /v1/notifications/verify-webhook-signature`.
+  - **PayPal Agent Toolkit** (`paypal-agent-toolkit` 1.11.0): the collections agent's tools (`list_invoices`, `get_invoice`, `send_invoice_reminder`, `cancel_sent_invoice`).
+- **Try it without any keys:** every adapter has a clearly labelled mock mode, so `uvicorn app.main:app` runs the whole flow offline (see Quick start).
+- **Verified on 2026-10-17 in the PayPal sandbox:** draft → send → checkout order → test-card capture → invoice `PAID`, with no real money involved (see *Checkout links* below and `eval/sandbox_smoke.md`).
+
+## What it does
 Freelance developers and designers lose hours, and money, turning "here's what we want..." into a scoped, fairly priced, milestone-based quote, and then chasing payment. Scope2Cash runs that whole pipeline:
 
 1. **Scope.** Paste an email, chat, or job post. The agent extracts milestones, deliverables, hours, assumptions, risks, the client's stated budget and deadline, and the questions to ask before committing. A *brief completeness* score warns when the brief is too thin to quote.
@@ -131,7 +145,7 @@ uvicorn app.main:app --port 8765
 
 ## Quality: evals and tests
 ```bash
-python -m pytest -q                       # 62 tests: flow, HTTP contracts, webhooks, agent, UI contract (no network)
+python -m pytest -q                       # 70 tests: flow, HTTP contracts, webhooks, agent, UI contract (no network)
 python scripts/eval_agent.py              # collections agent: 11 instruction -> exact-proposal cases
 python scripts/eval.py                    # eval set, mock mode -> eval/results.md
 python scripts/eval.py --set holdout      # 4 hold-out briefs never used to tune the heuristics
@@ -156,6 +170,8 @@ The current results in `eval/results.md` and `eval/results_holdout.md` are from 
 The four live misses: a 222 h estimate against a 220 h cap, 342 h on the vague "Uber for dog walkers" one-liner, confidence 0.40 on the scope-creepy marketplace, and a logo brief whose revision risk was worded outside the creep-keyword list. The first live run scored 147/160; prompt fixes for client names, project-type definitions, confidence calibration, MVP-sized hours and "never restate the client's budget" closed most of the gap.
 
 ## Deploy (Render free tier)
+Click **Deploy to Render** at the top (or Render Dashboard → New → Blueprint → pick this repo). Render asks for the `sync: false` secrets: `DEEPSEEK_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_SANDBOX_BUSINESS_EMAIL`, and optionally `TAVILY_API_KEY`, `PAYPAL_WEBHOOK_ID` (added after the first deploy, see below), `SCOPE2CASH_DEMO_CLIENT_EMAIL`, `PUBLIC_BASE_URL` (defaults to Render's `RENDER_EXTERNAL_URL`). Anything left empty runs in mock mode.
+
 `render.yaml` is a Render Blueprint (`runtime: docker`, `plan: free`, health check `/healthz`). Secrets are declared with `sync: false`, so Render prompts for them instead of storing them in git. The `Dockerfile` runs as a non-root user and honours `$PORT`. Free instances have an ephemeral filesystem, so the SQLite demo store resets on redeploy or spin-down. That is acceptable for a single-user demo.
 
 The blueprint turns on **public-demo mode**, because a judge-facing URL holds real API keys. Each IP gets 30 AI requests per hour. Live LLM/Tavily steps are capped per day; after the cap, requests run on the offline heuristics and the trace says so. Invoices can only go to sandbox addresses (`*example.com`). The invoice list is a single shared demo store, so concurrent visitors see each other's drafts.
@@ -206,5 +222,8 @@ app/
 eval/briefs.json       eval set;  eval/results.md  latest scorecard
 ```
 
+## How this was built
+Scope2Cash was designed and built by Wang Huilin in October 2026. **AI coding assistants were used heavily**, for writing code, tests, eval cases and documentation. The product decisions, the human-in-the-loop design, the review of the generated code, and every claim in this README (checked against the tests, the eval results in `eval/`, and real PayPal sandbox runs) are the author's responsibility. No real customer data is used; all sample clients are fictional and labelled as such.
+
 ## License
-MIT
+[MIT](LICENSE) © 2026 Wang Huilin. Uses the PayPal Agent Toolkit (Apache-2.0) and AG Grid Community (MIT).

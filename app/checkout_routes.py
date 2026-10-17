@@ -34,7 +34,8 @@ def _get(inv_id: str) -> Invoice:
 
 
 def _base_url(request: Request) -> str:
-    return (config._get("PUBLIC_BASE_URL") or str(request.base_url)).rstrip("/")  # set when deployed behind a proxy
+    # PUBLIC_BASE_URL wins; on Render, RENDER_EXTERNAL_URL (set automatically) is the public https URL.
+    return (config._get("PUBLIC_BASE_URL") or config._get("RENDER_EXTERNAL_URL") or str(request.base_url)).rstrip("/")
 
 
 def _by_order(order_id: str) -> Optional[Invoice]:

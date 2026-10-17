@@ -10,7 +10,7 @@ Everything here uses the **PayPal sandbox**. No real money moves.
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | yes, for live PayPal | From developer.paypal.com > Apps & Credentials > **Sandbox** tab > your app |
 | `PAYPAL_MODE` (legacy `PAYPAL_ENV`) | yes | `sandbox` (`live` is refused unless `PAYPAL_ALLOW_LIVE=1`) |
 | `PAYPAL_SANDBOX_BUSINESS_EMAIL` | recommended | The sandbox **business** account email (`sb-…@business.example.com`); `PAYPAL_INVOICER_EMAIL` overrides it |
-| `PUBLIC_BASE_URL` | recommended | `https://<service>.onrender.com`, used for PayPal checkout return/cancel URLs |
+| `PUBLIC_BASE_URL` | optional | Public URL for PayPal checkout return/cancel URLs. On Render it defaults to `RENDER_EXTERNAL_URL`; set it only for a custom domain |
 | `PAYPAL_WEBHOOK_ID` | yes, for real webhooks | ID PayPal shows after you subscribe `https://<host>/api/paypal/webhook` (step 3) |
 | `SCOPE2CASH_DEMO_CLIENT_EMAIL` | recommended | The sandbox **personal** (buyer) email, prefilled as the client |
 | `SCOPE2CASH_MOCK_WEBHOOK_SECRET` | yes | Random (the blueprint generates it) |

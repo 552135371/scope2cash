@@ -1,6 +1,30 @@
+# Python
 .venv/
+venv/
 __pycache__/
-*.pyc
-.env
-data/
+*.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Secrets: never commit real env files (the placeholder template is tracked)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local data and generated artifacts
+data/
+*.db
+*.sqlite*
+out/
+screens/
+playwright-report/
+test-results/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

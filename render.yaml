@@ -24,7 +24,8 @@ services:
         sync: false
       - key: PAYPAL_MODE
         value: sandbox
-      # Public URL used for PayPal checkout return/cancel URLs (https://<service>.onrender.com)
+      # Optional: public URL for PayPal checkout return/cancel URLs. Leave empty on Render: the app falls back to
+      # RENDER_EXTERNAL_URL (set by Render automatically). Set it only for a custom domain.
       - key: PUBLIC_BASE_URL
         sync: false
       # Subscribe https://<service>.onrender.com/api/paypal/webhook in the PayPal Developer Dashboard, then paste its ID.
@@ -43,7 +44,7 @@ services:
       # (then the app falls back to the offline heuristics with a visible warning), sandbox-only invoice recipients.
       - key: SCOPE2CASH_PUBLIC_DEMO
         value: "1"
-      - key: SCOPE2CASH_DAILY_LIVE_CAP
+      - key: SCOPE2CASH_DAILY_LIVE_CAP  # gitleaks:allow (env var name, not a secret)
         value: "150"
       - key: SCOPE2CASH_RECIPIENT_DOMAINS
         value: example.com
