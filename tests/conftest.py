@@ -6,7 +6,7 @@ os.environ.setdefault("SCOPE2CASH_DB", ":memory:")
 import httpx  # noqa: E402
 import pytest  # noqa: E402
 
-from app import config  # noqa: E402
+from app import config, guard  # noqa: E402
 from app.adapters import http, llm, payments  # noqa: E402
 
 LIVE_ENV = {
@@ -44,6 +44,7 @@ def isolated(tmp_path, monkeypatch):
     http.set_sleep(lambda s: None)
     payments._token_cache.clear()
     llm.MODEL_CHECK = llm.ModelCheck()
+    guard.reset()
     llm.NebiusLLM._no_json_mode = set()
     yield
     http.set_transport(None)

@@ -73,6 +73,11 @@ uvicorn app.main:app --port 8765
 | `FALLBACK_TO_MOCK` | `1` | Degrade gracefully (with a visible warning) when a live call fails |
 | `APP_CURRENCY`, `DEFAULT_HOURLY_RATE`, `FREELANCER_NAME` | `USD`, `45`, `Huilin` | Quote defaults and sign-off |
 | `SCOPE2CASH_DB` | `data/scope2cash.db` | SQLite file (invoices + audit log) |
+| `SCOPE2CASH_PUBLIC_DEMO` | `0` | `1` = sandbox-only invoice recipients and a default 30 AI requests per IP per hour |
+| `SCOPE2CASH_RATE_LIMIT` | `0` | AI requests per IP per hour (0 = default) |
+| `SCOPE2CASH_DAILY_LIVE_CAP` | `0` | Live Nemotron/Tavily steps per day before falling back to offline heuristics (0 = no cap) |
+| `SCOPE2CASH_RECIPIENT_DOMAINS` | `example.com` | Allowed recipient domains in public-demo mode |
+| `SCOPE2CASH_DEMO_CLIENT_EMAIL` | `sarah@bloompilates.example.com` | Prefilled client email (e.g. your sandbox buyer) |
 | `SCOPE2CASH_ENV_FILE` | (unset) | Optional extra env file outside the repo |
 
 ## Quality: evals and tests
@@ -90,6 +95,8 @@ The current results in `eval/results.md` and `eval/results_holdout.md` are from 
 
 ## Deploy (Render free tier)
 `render.yaml` is a Render Blueprint (`runtime: docker`, `plan: free`, health check `/healthz`). Secrets are declared with `sync: false`, so Render prompts for them instead of storing them in git. The `Dockerfile` runs as a non-root user and honours `$PORT`. Free instances have an ephemeral filesystem, so the SQLite demo store resets on redeploy or spin-down. That is acceptable for a single-user demo.
+
+The blueprint turns on **public-demo mode**, because a judge-facing URL holds real API keys. Each IP gets 30 AI requests per hour. Live Nemotron/Tavily steps are capped per day; after the cap, requests run on the offline heuristics and the trace says so. Invoices can only go to sandbox addresses (`*example.com`). The invoice list is a single shared demo store, so concurrent visitors see each other's drafts.
 
 ```bash
 docker build -t scope2cash . && docker run -p 8000:8000 --env-file .env scope2cash

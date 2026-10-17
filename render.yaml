@@ -34,3 +34,13 @@ services:
       # Free instances have an ephemeral filesystem: the SQLite demo store resets on redeploy/spin-down.
       - key: SCOPE2CASH_DB
         value: /tmp/scope2cash.db
+      # Public-demo protection: 30 AI requests per IP per hour, a daily cap on live Nemotron/Tavily runs
+      # (then the app falls back to the offline heuristics with a visible warning), sandbox-only invoice recipients.
+      - key: SCOPE2CASH_PUBLIC_DEMO
+        value: "1"
+      - key: SCOPE2CASH_DAILY_LIVE_CAP
+        value: "150"
+      - key: SCOPE2CASH_RECIPIENT_DOMAINS
+        value: example.com
+      - key: SCOPE2CASH_DEMO_CLIENT_EMAIL
+        sync: false

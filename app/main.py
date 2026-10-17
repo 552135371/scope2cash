@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import agent, config, store
+from . import agent, config, guard, store
 from .adapters import llm as llm_mod
 from .adapters.http import AdapterError
 from .adapters.payments import client_for, get_payments, MockPayments
@@ -30,6 +30,32 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Scope2Cash", version=VERSION, lifespan=lifespan)
 
 
+AI_PATHS = ("/api/scope", "/api/pricing", "/api/quote", "/api/invoices")
+
+
+@app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    p = request.url.path
+    if request.method == "POST" and (p in AI_PATHS or p.endswith("/reminder")):
+        wait = guard.rate_limited(guard.client_ip(request))
+        if wait:
+            return JSONResponse(status_code=429, headers={"Retry-After": str(wait)},
+                                content={"detail": f"Demo rate limit reached; try again in {wait // 60 + 1} min."})
+    return await call_next(request)
+
+
+def _budget_step() -> list:
+    """Spend one live run, or switch this request to the offline heuristics with a visible trace warning."""
+    s = config.get_settings()
+    if not (s.llm_live or s.search_live) or guard.take_live_run():
+        return []
+    config.OFFLINE_THIS_REQUEST.set(True)
+    return [TraceStep(step="Daily live budget", model="guard", mode="fallback", ms=0, tier="tool",  # type: ignore[arg-type]
+                      note=f"cap {s.daily_live_cap} runs/day",
+                      warning="Today's live Nemotron/Tavily budget for this public demo is spent; "
+                              "this run used the offline heuristics. Run locally with your own keys for live results.")]
+
+
 @app.exception_handler(AdapterError)
 async def adapter_error(_req: Request, e: AdapterError):
     return JSONResponse(status_code=502, content={"detail": str(e), "provider": e.provider})
@@ -49,7 +75,12 @@ def health():
         warnings.append("Model check: " + (chk.error or "missing " + ", ".join(chk.missing)))
     warnings += [f"Model check: {n}" for n in chk.notes]
     models = {t: (chk.resolved.get(t) or m) for t, m in s.models().items()}
-    return {"ok": True, "version": VERSION, "warnings": warnings, "adapters": {
+    notices = []
+    if s.public_demo:
+        notices.append("Public demo: invoices only go to sandbox addresses (" + s.recipient_domains + ")"
+                        + (f"; live runs today {guard.live_runs_today()}/{s.daily_live_cap}" if s.daily_live_cap else ""))
+    return {"ok": True, "version": VERSION, "warnings": warnings, "notices": notices, "demo_client_email": s.demo_client_email,
+            "public_demo": s.public_demo, "adapters": {
         "llm": {"mode": "live" if s.llm_live else "mock", "provider": "Nebius Token Factory", "models": models,
                 "model_check": chk.as_dict()},
         "search": {"mode": "live" if s.search_live else "mock", "provider": "Tavily"},
@@ -59,20 +90,23 @@ def health():
 
 @app.post("/api/scope", response_model=ScopeResponse)
 def scope(req: ScopeRequest):
+    pre = _budget_step()
     s, trace = agent.build_scope(req.requirement)
-    return ScopeResponse(scope=s, trace=trace)
+    return ScopeResponse(scope=s, trace=pre + trace)
 
 
 @app.post("/api/pricing", response_model=PricingResponse)
 def pricing(req: PricingRequest):
+    pre = _budget_step()
     p, trace = agent.build_pricing(req.scope)
-    return PricingResponse(pricing=p, trace=trace)
+    return PricingResponse(pricing=p, trace=pre + trace)
 
 
 @app.post("/api/quote", response_model=QuoteResponse)
 def quote(req: QuoteRequest):
+    pre = _budget_step()
     q, trace = agent.build_quote(req.scope, req.pricing, req.hourly_rate, req.position)
-    return QuoteResponse(quote=q, trace=trace)
+    return QuoteResponse(quote=q, trace=pre + trace)
 
 
 def _create_all(pay, req: InvoiceDraftRequest):
@@ -88,6 +122,9 @@ def _create_all(pay, req: InvoiceDraftRequest):
 @app.post("/api/invoices", response_model=InvoiceDraftResponse)
 def create_invoices(req: InvoiceDraftRequest):
     s = config.get_settings()
+    if not s.recipient_allowed(req.client_email):
+        raise HTTPException(400, "This public demo only invoices sandbox addresses (" + s.recipient_domains +
+                            "), e.g. a PayPal sandbox buyer like sb-xxxx@personal.example.com.")
     pay = get_payments()
 
     t0 = time.time()

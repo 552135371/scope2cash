@@ -51,7 +51,9 @@ let SAMPLES = [];
   const m = h.adapters.llm.models || {};
   const b = (label, a, extra = "") => `<span class="badge ${extra}" title="${esc(a.provider)}${a.models ? "\n" + esc(Object.entries(a.models).map(([k, v]) => k + ": " + v).join("\n")) : ""}"><span class="dot ${a.mode === "live" ? "live" : ""}"></span>${label} · ${a.mode}</span>`;
   $("#badges").innerHTML = b("Nemotron @ Nebius", h.adapters.llm, h.warnings.length ? "warn" : "") + b("Tavily", h.adapters.search) + b("PayPal", h.adapters.payments);
-  if (h.warnings.length) { $("#healthwarn").innerHTML = h.warnings.map((w) => `<div>⚠ ${esc(w)}</div>`).join(""); $("#healthwarn").classList.remove("hidden"); }
+  state.demoEmail = h.demo_client_email;
+  const banner = h.warnings.map((w) => `<div>⚠ ${esc(w)}</div>`).concat((h.notices || []).map((n) => `<div>ℹ ${esc(n)}</div>`));
+  if (banner.length) { $("#healthwarn").innerHTML = banner.join(""); $("#healthwarn").classList.remove("hidden"); }
   SAMPLES = await api("/api/samples");
   $("#samples").innerHTML = SAMPLES.map((x, i) => `<option value="${i}">${esc(x.title)}</option>`).join("");
 })();
@@ -137,7 +139,7 @@ function renderQuote() {
         <h5 class="muted" style="margin:14px 0 0">TERMS</h5><ul class="tips">${q.terms.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div>
     </div>
     <div class="row between"><button class="ghost" id="copy-quote">Copy proposal</button>
-      <div class="row" style="margin:0;flex:1;justify-content:flex-end"><input id="email" type="email" style="max-width:260px" value="sarah@bloompilates.example" placeholder="client@email.com">
+      <div class="row" style="margin:0;flex:1;justify-content:flex-end"><input id="email" type="email" style="max-width:260px" value="${esc(state.demoEmail || "sarah@bloompilates.example.com")}" placeholder="client@email.com">
       <button class="pp" id="go-inv">Create PayPal invoice drafts</button></div></div>`;
   document.querySelectorAll("#seg button").forEach((b) => b.onclick = async () => {
     state.position = b.dataset.p; state.rate = null; await makeQuote(); renderPricing(); renderQuote();

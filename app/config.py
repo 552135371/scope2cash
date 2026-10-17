@@ -2,6 +2,7 @@
 mock to live is a config change, never a code change."""
 from __future__ import annotations
 
+import contextvars
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,14 +76,32 @@ class Settings:
     freelancer_name: str = field(default_factory=lambda: _get("FREELANCER_NAME", "Huilin"))
     db_path: str = field(default_factory=lambda: _get("SCOPE2CASH_DB", str(ROOT / "data" / "scope2cash.db")))
     force_mock: bool = field(default_factory=lambda: _get("SCOPE2CASH_FORCE_MOCK") == "1")
+    # Public-demo protection (for a hosted URL that judges can open)
+    public_demo: bool = field(default_factory=lambda: _get("SCOPE2CASH_PUBLIC_DEMO") == "1")
+    rate_limit_per_hour: int = field(default_factory=lambda: int(_float("SCOPE2CASH_RATE_LIMIT", 0)))
+    daily_live_cap: int = field(default_factory=lambda: int(_float("SCOPE2CASH_DAILY_LIVE_CAP", 0)))
+    demo_client_email: str = field(default_factory=lambda: _get("SCOPE2CASH_DEMO_CLIENT_EMAIL", "sarah@bloompilates.example.com"))
+    recipient_domains: str = field(default_factory=lambda: _get("SCOPE2CASH_RECIPIENT_DOMAINS", "example.com"))
+
+    @property
+    def effective_rate_limit(self) -> int:
+        """AI requests per client IP per hour; defaults to 30 in public-demo mode, off otherwise."""
+        return self.rate_limit_per_hour or (30 if self.public_demo else 0)
+
+    def recipient_allowed(self, email: str) -> bool:
+        if not self.public_demo:
+            return True
+        domain = email.rsplit("@", 1)[-1].lower()
+        allowed = [d.strip().lower() for d in self.recipient_domains.split(",") if d.strip()]
+        return any(domain == d or domain.endswith("." + d) for d in allowed)
 
     @property
     def llm_live(self) -> bool:
-        return bool(self.nebius_api_key) and not self.force_mock
+        return bool(self.nebius_api_key) and not self.force_mock and not OFFLINE_THIS_REQUEST.get()
 
     @property
     def search_live(self) -> bool:
-        return bool(self.tavily_api_key) and not self.force_mock
+        return bool(self.tavily_api_key) and not self.force_mock and not OFFLINE_THIS_REQUEST.get()
 
     @property
     def payments_live(self) -> bool:
@@ -99,6 +118,9 @@ class Settings:
     def models(self) -> dict:
         return {"fast": self.model_fast, "main": self.model_main, "deep": self.model_deep}
 
+
+# Set per request when the daily live-call cap is spent, so that request runs on the offline heuristics.
+OFFLINE_THIS_REQUEST: contextvars.ContextVar[bool] = contextvars.ContextVar("offline_this_request", default=False)
 
 settings = Settings()
 
