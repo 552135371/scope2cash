@@ -149,3 +149,5 @@ tfoot td{font-weight:800;font-size:15px;border-bottom:0}
   .card-head{flex-wrap:wrap}.toolbar>#qf{max-width:none}.seg{overflow-x:auto;max-width:100%}.chart{height:240px}}
 .cell2.r{align-items:flex-end}.chip.waiting{white-space:nowrap}
 .grid-wrap{height:548px}
+.nudge.payout .nudge-txt b{color:var(--ok)}.chip.payout{background:#e6f6ec;color:#17733f;font-weight:600;white-space:nowrap}
+#modal-card label.small{display:flex;flex-direction:column;gap:4px;color:var(--muted)}

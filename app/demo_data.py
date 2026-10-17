@@ -20,6 +20,10 @@ ROWS = [
     ("Harbor Yoga", "hello@harboryoga.example.com", "iOS class-booking app", "Core build", 2400, 14, "PARTIALLY_PAID", 1200),
 ]
 
+# Collaborator splits on sample rows (row number -> label, email, amount): the paid Northwind discovery milestone had a
+# designer on it, so the pipeline shows a PayPal Payouts proposal waiting for approval as soon as the samples load.
+SPLITS = {1: ("Designer (Mia)", "mia@studio.example.com", 180.0)}
+
 
 def sample_invoices() -> List[Invoice]:
     today = date.today()
@@ -35,6 +39,9 @@ def sample_invoices() -> List[Invoice]:
             client_name=client, project=project, created_at=store.now(), sample=True,
             paid_at=(due_date - timedelta(days=1)).isoformat() if status == "PAID" else "",
             approved_at=store.now() if status != "DRAFT" else ""))
+        if n in SPLITS:
+            label, mail, share = SPLITS[n]
+            out[-1] = out[-1].model_copy(update={"split_label": label, "split_email": mail, "split_amount": share})
     return out
 
 

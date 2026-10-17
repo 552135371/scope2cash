@@ -204,6 +204,8 @@ function renderInvoices() {
       ${!demo && ["SENT", "OVERDUE", "PARTIALLY_PAID"].includes(i.status) ? `<button class="ghost tiny" data-a="cardpay" data-id="${i.id}">⏩ client pays (sandbox card)</button>` : ""}
       ${demo && i.status === "SENT" ? `<button class="ghost tiny" data-a="overdue" data-id="${i.id}">⏩ overdue</button><button class="ghost tiny" data-a="pay" data-id="${i.id}">⏩ paid</button>` : ""}
       ${demo && i.status === "OVERDUE" ? `<button class="ghost tiny" data-a="pay" data-id="${i.id}">⏩ paid</button>` : ""}
+      ${["CANCELLED", "REFUNDED"].includes(i.status) ? "" : i.payout_batch_id ? `<span class="chip payout">💸 ${esc(i.split_label)} · ${esc(i.payout_status || "sent")}</span>`
+        : `<button class="ghost tiny" data-a="split" data-id="${i.id}">${i.split_email ? `👥 ${esc(i.split_label)} · ${money(i.split_amount, cur)}` : "👥 Split"}</button>`}
       </div></td></tr>`).join("")}</tbody></table>
     <p class="muted small">${demo ? "Demo mode: ⏩ buttons simulate client actions. With PayPal sandbox keys, statuses sync from PayPal." : "Statuses sync live from PayPal Invoicing. Checkout links use PayPal Orders v2; ⏩ sandbox card pays with a PayPal sandbox test card (no real money)."}</p>
     <div class="row end"><button class="ghost" id="refresh">Refresh statuses</button></div>`;
@@ -228,6 +230,28 @@ async function act(a, id) {
   if (a === "pay" || a === "overdue" || a === "cancel") {
     const inv = await api(`/api/demo/${id}/${a}`, {}); replace(inv);
     if (a !== "overdue") toast(`Simulated PayPal webhook ${inv.last_event || ""} → ${inv.status} (mock-signed, verified)`);
+  }
+  if (a === "payoutrefresh") { const inv = await api(`/api/invoices/${id}/payout/refresh`, {}); replace(inv); toast(`PayPal Payouts: ${inv.split_label} · ${inv.payout_status}`); }
+  if (a === "split") {
+    const inv = state.invoices?.find((x) => x.id === id) || (await api("/api/invoices")).find((x) => x.id === id);
+    const pct = inv.split_amount ? "" : 30;
+    $("#modal-card").innerHTML = `<div class="card-head"><h2>Split with a collaborator</h2><span class="chip">PayPal Payouts</span></div>
+      <p class="muted small">Working with a designer or developer on <b>${esc(inv.milestone)}</b> (${money(inv.amount, inv.currency)})? When the client pays this milestone, Scope2Cash queues a PayPal payout of their share. <b>Nothing is paid until you click Approve.</b></p>
+      <div class="grid2" style="margin-top:8px"><label class="small">Who<input id="sp-label" value="${esc(inv.split_label || "Designer")}" maxlength="60"></label>
+        <label class="small">Their PayPal email<input id="sp-email" value="${esc(inv.split_email || "designer@collab.example.com")}"></label></div>
+      <div class="grid2"><label class="small">Share (USD)<input id="sp-amt" type="number" min="0" step="0.01" value="${inv.split_amount || (inv.amount * 0.3).toFixed(2)}"></label>
+        <label class="small">or % of milestone<input id="sp-pct" type="number" min="0" max="100" step="1" value="${pct}"></label></div>
+      ${state.health?.public_demo ? `<p class="muted small">Public demo: sandbox recipients only (*example.com). No real money.</p>` : ""}
+      <div class="row end">${inv.split_email ? `<button class="ghost" id="sp-clear">Remove split</button>` : ""}<button class="ghost" id="m-close">Close</button><button class="pp" id="sp-save">Save split</button></div>`;
+    $("#modal").classList.remove("hidden");
+    $("#sp-pct").oninput = () => { const p = parseFloat($("#sp-pct").value); if (!isNaN(p)) $("#sp-amt").value = (inv.amount * p / 100).toFixed(2); };
+    $("#m-close").onclick = () => $("#modal").classList.add("hidden");
+    const save = (body) => busy($("#sp-save"), async () => {
+      const r = await api(`/api/invoices/${id}/split`, body); replace(r); $("#modal").classList.add("hidden");
+      toast(r.split_email ? (r.status === "PAID" ? `Split saved: payout of ${money(r.split_amount, r.currency)} queued for your approval (Pipeline)` : `Split saved: when the client pays, ${money(r.split_amount, r.currency)} goes to ${r.split_label} after your approval`) : "Split removed");
+    });
+    $("#sp-save").onclick = () => save({ label: $("#sp-label").value, email: $("#sp-email").value, amount: parseFloat($("#sp-amt").value) || 0 });
+    if ($("#sp-clear")) $("#sp-clear").onclick = () => save({ amount: 0 });
   }
   if (a === "remind") {
     const r = await api(`/api/invoices/${id}/reminder`, {}); addTrace(r.trace);

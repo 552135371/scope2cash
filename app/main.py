@@ -8,16 +8,16 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import agent, config, guard, paypal_agent, pipeline_stats, store, webhooks
+from . import agent, config, guard, payouts_flow, paypal_agent, pipeline_stats, store, webhooks
 from .checkout_routes import router as checkout_router
 from .adapters import llm as llm_mod
 from .adapters.http import AdapterError
 from .adapters.payments import client_for, get_payments, MockPayments
 from .models import (AgentAction, AgentRequest, AgentResponse, CashflowRequest, Invoice, InvoiceDraftRequest, InvoiceDraftResponse,
                      PricingRequest, PricingResponse, QuoteRequest, QuoteResponse, ReminderResponse, ReminderSendResponse,
-                     SampleProjectResponse, ScopeRequest, ScopeResponse, TraceStep, WebhookResult)
+                     SampleProjectResponse, ScopeRequest, ScopeResponse, SplitRequest, TraceStep, WebhookResult)
 
-VERSION = "0.3.1"
+VERSION = "0.4.0"
 BOOTED_AT = store.now()  # lets the UI notice a restart (= the free host wiped its demo data)
 STATIC = Path(__file__).parent / "static"
 
@@ -186,8 +186,29 @@ def list_invoices():
                 inv = store.save(client_for(inv).refresh(inv))
             except AdapterError:
                 pass  # keep the last known status; the UI still works
+        payouts_flow.queue_if_paid(inv)  # a refresh that found PAID queues the collaborator payout (idempotent)
         out.append(inv)
     return out
+
+
+# ---- collaborator payouts (PayPal Payouts API; queued when a milestone is paid, run only after approval) ----
+@app.post("/api/invoices/{inv_id}/split", response_model=Invoice)
+def set_split(inv_id: str, req: SplitRequest):
+    """Set or clear the collaborator's share of a milestone. If the milestone is already paid, the payout is queued
+    for approval right away; otherwise it is queued when PayPal reports the payment."""
+    try:
+        return payouts_flow.set_split(_get(inv_id), req.label, req.email, req.amount, req.percent)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/api/invoices/{inv_id}/payout/refresh", response_model=Invoice)
+def refresh_payout(inv_id: str):
+    """Re-read the payout batch from PayPal (GET /v1/payments/payouts/{id}): SUCCESS, UNCLAIMED, ..."""
+    inv = _get(inv_id)
+    if not inv.payout_batch_id:
+        raise HTTPException(409, f"{inv.number} has no payout yet")
+    return payouts_flow.refresh(inv)
 
 
 def _get(inv_id: str) -> Invoice:
@@ -299,6 +320,7 @@ def collections_agent(req: AgentRequest):
 
 @app.get("/api/agent/actions", response_model=list[AgentAction])
 def agent_actions(status: str = ""):
+    payouts_flow.sweep()  # paid milestones with a split get their payout proposal (idempotent, local data only)
     return store.actions(status)
 
 

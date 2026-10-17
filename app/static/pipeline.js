@@ -1,6 +1,7 @@
 // Pipeline dashboard: AG Grid Community table of every invoice across clients, an AG Charts Community cash-flow chart
 // and a second AG Grid "who still owes what" scoreboard, all cross-filtered; saved views + CSV export; the collections
 // agent (PayPal Agent Toolkit tools) with its proposed nudges inline in the grid, each waiting for an Approve click;
+// collaborator payouts (PayPal Payouts) queued when a milestone is paid, approved in the same grid column;
 // and the verified PayPal webhook feed. Community editions only (MIT), no build step.
 const P = { rows: [], filter: "all", client: "", week: null, q: "", grid: null, board: null, chart: null, cash: null, pending: {}, hidden: new Set(["drafts"]) };
 const UNPAID = ["SENT", "OVERDUE", "PARTIALLY_PAID"];
@@ -24,12 +25,12 @@ function kpis() {
   const paid = r.filter((i) => i.status === "PAID").reduce((a, i) => a + i.amount, 0);
   const late = r.filter((i) => UNPAID.includes(i.status) && lateDays(i) > 0);
   const clients = new Set(r.map(clientOf)).size;
-  const waiting = Object.keys(P.pending).length;
+  const pend = Object.values(P.pending), payouts = pend.filter((a) => a.tool === "create_payout").length, waiting = pend.length - payouts;
   $("#kpis").innerHTML = [
     ["Collected", money(paid), "ok", `${r.filter((i) => i.status === "PAID").length} paid`],
     ["Awaiting payment", money(sum((i) => UNPAID.includes(i.status))), "pp", `${r.filter((i) => UNPAID.includes(i.status)).length} open`],
     ["Overdue", money(late.reduce((a, i) => a + due(i), 0)), "bad", late.length ? `${late.length} late · oldest ${Math.max(...late.map(lateDays))}d` : "nobody is late 🎉"],
-    ["Drafts to approve", money(sum((i) => i.status === "DRAFT")), "", `${clients} client${clients === 1 ? "" : "s"}${waiting ? ` · ${waiting} agent nudge${waiting === 1 ? "" : "s"} waiting` : ""}`],
+    ["Drafts to approve", money(sum((i) => i.status === "DRAFT")), "", `${clients} client${clients === 1 ? "" : "s"}${waiting ? ` · ${waiting} agent nudge${waiting === 1 ? "" : "s"} waiting` : ""}${payouts ? ` · ${payouts} payout${payouts === 1 ? "" : "s"} to approve` : ""}`],
   ].map(([k, v, c, sub]) => `<div class="kpi ${c}"><small>${k}</small><b>${v}</b><span>${sub}</span></div>`).join("");
 }
 
@@ -43,11 +44,25 @@ function actionsHtml(i) {
     !mock && UNPAID.includes(i.status) && !i.checkout_link ? b("checkout", "Checkout link") : "",
     !mock && i.checkout_link && i.status !== "PAID" ? `<a class="ghost tiny" href="${esc(i.checkout_link)}" target="_blank" rel="noopener">Pay with PayPal ↗</a>` : "",
     !mock && UNPAID.includes(i.status) ? b("cardpay", "⏩ client pays (sandbox card)") : "",
+    splitHtml(i, b),
   ].join("");
+}
+// Collaborator split (PayPal Payouts): set it on any open or paid milestone; once paid out, show the payout status.
+function splitHtml(i, b) {
+  if (["CANCELLED", "REFUNDED"].includes(i.status)) return "";
+  if (i.payout_batch_id) return `<span class="chip payout" title="PayPal Payouts batch ${esc(i.payout_batch_id)}">💸 ${esc(i.split_label)} · ${esc(i.payout_status || "sent")}</span>`
+    + (i.provider !== "mock" ? b("payoutrefresh", "↻") : "");
+  if (i.split_email) return b("split", `👥 ${esc(i.split_label)} · ${money(i.split_amount, i.currency)}`);
+  if (!["PAID", "DRAFT"].includes(i.status)) return "";  // open rows already carry 2-3 buttons; their split lives in step 5
+  return `<button class="ghost tiny" data-a="split" data-id="${esc(i.id)}" title="Split with a collaborator (PayPal Payouts after the client pays)" aria-label="Split with a collaborator">👥</button>`;
 }
 // Collections-agent column: the agent's queued proposal for this invoice, inline, with Approve / Reject.
 function agentCellHtml(i) {
   const a = P.pending[i.id];
+  if (a && a.tool === "create_payout") {
+    return `<div class="nudge payout" title="${esc(a.reason)}"><div class="nudge-txt"><b>💸 Pay ${esc(a.params.label)} ${money(a.params.amount, i.currency)}</b><small>Client paid · PayPal Payouts to ${esc(a.params.receiver)}</small></div>
+      <button class="ghost tiny" data-pa="reject" data-pid="${esc(a.id)}" aria-label="Reject">✕</button><button class="pp tiny" data-pa="approve" data-pid="${esc(a.id)}">Approve</button></div>`;
+  }
   if (a) {
     const cancel = a.tool === "cancel_sent_invoice";
     const head = cancel ? "🛑 Cancel proposed" : `💬 ${a.params?.subject || "Reminder drafted"}`;
@@ -56,6 +71,7 @@ function agentCellHtml(i) {
       <button class="ghost tiny" data-pa="reject" data-pid="${esc(a.id)}" aria-label="Reject">✕</button><button class="pp tiny" data-pa="approve" data-pid="${esc(a.id)}">Approve</button></div>`;
   }
   if (UNPAID.includes(i.status)) return `<button class="ghost tiny agentbtn" data-nudge="${esc(i.number)}">🤖 Draft a nudge</button>`;
+  if (i.status === "PAID" && i.payout_batch_id) return `<span class="muted small">✓ paid · 💸 ${esc(i.split_label)} paid out (${esc(i.payout_status || "sent")})</span>`;
   return `<span class="muted small">${i.status === "PAID" ? "✓ nothing to chase" : i.status === "DRAFT" ? "send it first" : ""}</span>`;
 }
 const pill = (s) => `<span class="pill ${esc(s)}">${esc(s.replace("_", " "))}</span>`;
@@ -82,7 +98,7 @@ function columns() {
       valueGetter: (p) => (p.node.rowPinned ? "" : P.pending[p.data.id] ? "proposal waiting" : ""),
       cellRenderer: (p) => (p.node.rowPinned ? "" : agentCellHtml(p.data)) },
     { field: "last_event", headerName: "Last PayPal event", width: 132, valueFormatter: (p) => short(p.value) },
-    { colId: "actions", headerName: "Actions", minWidth: 205, flex: 0.8, sortable: false, pinned: "right", cellRenderer: (p) => (p.node.rowPinned ? "" : `<div class="acts left">${actionsHtml(p.data)}</div>`) },
+    { colId: "actions", headerName: "Actions", minWidth: 235, flex: 0.8, sortable: false, pinned: "right", cellRenderer: (p) => (p.node.rowPinned ? "" : `<div class="acts left">${actionsHtml(p.data)}</div>`) },
   ];
 }
 function totals(rows) {
@@ -287,7 +303,10 @@ async function loadPipeline() {
   P.rows = rows;
   const open = new Set(rows.filter((i) => UNPAID.includes(i.status)).map((i) => i.id));
   P.pending = {};
-  pend.slice().reverse().forEach((a) => { if (open.has(a.invoice_id)) P.pending[a.invoice_id] = a; });  // newest wins
+  const paid = new Set(rows.filter((i) => i.status === "PAID").map((i) => i.id));
+  pend.slice().reverse().forEach((a) => {  // newest wins; payouts belong to paid rows, nudges to open ones
+    if (a.tool === "create_payout" ? paid.has(a.invoice_id) : open.has(a.invoice_id)) P.pending[a.invoice_id] = a;
+  });
   kpis(); renderGrid(); loadEvents(); loadBoard();
 }
 async function loadEvents() {
@@ -320,7 +339,9 @@ async function decide(btn) {
     if (card) card.outerHTML = propHtml(r.action);
     if (r.action.status === "executed") {
       toast((r.invoice?.provider === "mock" ? "Mock: " : "PayPal: ") + r.action.summary.split(" · ")[0] + " — done");
-      addTrace([{ step: "Approved agent action", model: "paypal-agent-toolkit", tier: "tool", mode: r.invoice?.provider === "mock" ? "mock" : "live", ms: 0, note: r.action.tool }]);
+      const payout = r.action.tool === "create_payout";
+      addTrace([{ step: payout ? "Approved collaborator payout" : "Approved agent action", model: payout ? "paypal-payouts" : "paypal-agent-toolkit", tier: "tool",
+        mode: r.invoice?.provider === "mock" ? "mock" : "live", ms: 0, note: payout ? r.action.result : r.action.tool }]);
     } else if (r.action.status === "failed") toast("Blocked: " + r.action.result);
     else toast("Rejected: nothing was sent");
   });

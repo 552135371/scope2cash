@@ -17,7 +17,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from . import config, store
+from . import config, payouts_flow, store
 from .adapters.checkout import checkout_for, order_capture, order_link
 from .adapters.http import AdapterError
 from .models import Invoice, TraceStep
@@ -57,7 +57,9 @@ def _complete(inv: Invoice, order: dict, via: str) -> Invoice:
                                      "amount_due": 0.0, "days_overdue": 0})
         store.audit("checkout_captured", inv.id, order_id=inv.order_id, capture_id=inv.capture_id, via=via,
                     amount=(cap.get("amount") or {}).get("value"))
-    return store.save(inv)
+    inv = store.save(inv)
+    payouts_flow.queue_if_paid(inv)  # client paid -> the collaborator's share waits for the freelancer's approval
+    return inv
 
 
 @router.post("/api/invoices/{inv_id}/checkout")

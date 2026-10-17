@@ -207,6 +207,14 @@ class Invoice(BaseModel):
     order_status: str = ""  # CREATED | PAYER_ACTION_REQUIRED | APPROVED | COMPLETED | ...
     checkout_link: str = ""
     capture_id: str = ""
+    # Collaborator split (v0.4): when this milestone is paid, part of it goes to a collaborator through PayPal Payouts,
+    # after the freelancer approves the queued payout.
+    split_label: str = ""  # e.g. "Designer (Mia)"
+    split_email: str = ""
+    split_amount: float = 0.0
+    payout_batch_id: str = ""
+    payout_status: str = ""  # batch status (PENDING | PROCESSING | SUCCESS | ...) or item status (UNCLAIMED, ...)
+    payout_item_id: str = ""
 
 
 class InvoiceDraftRequest(BaseModel):
@@ -269,6 +277,14 @@ class AgentAction(BaseModel):
     result: str = ""
     created_at: str = ""
     decided_at: str = ""
+
+
+class SplitRequest(BaseModel):
+    """Set (or clear, with amount 0) the collaborator share of one milestone. Give `amount` or `percent`."""
+    label: str = Field("", max_length=60)
+    email: str = Field("", max_length=120)
+    amount: Optional[float] = None
+    percent: Optional[float] = None
 
 
 class CashflowRequest(BaseModel):

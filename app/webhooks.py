@@ -21,7 +21,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
 
-from . import config, store
+from . import config, payouts_flow, store
 from .adapters.http import AdapterError
 from .adapters.payments import STATUS_MAP, PayPalInvoicing, apply_paypal_invoice, to_paypal_invoice
 from .models import Invoice, WebhookResult
@@ -158,6 +158,8 @@ def _process(event_type: str, res: Dict[str, Any], inv_id: str, verified_by: str
             how += f"; refresh failed ({e.message[:80]}), kept event status"
     store.save(updated)
     store.audit("webhook", inv.id, event_type=event_type, verified_by=verified_by, change=how)
+    if updated.status == "PAID" and payouts_flow.queue_if_paid(updated):
+        how += "; collaborator payout queued for approval"
     return WebhookResult(status="processed", invoice_status=updated.status, detail=how, **base)
 
 

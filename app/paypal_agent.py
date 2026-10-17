@@ -26,7 +26,7 @@ from importlib import metadata
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
-from . import config, store
+from . import config, payouts_flow, store
 from .adapters import llm as llm_mod
 from .adapters.http import AdapterError
 from .adapters.payments import PayPalInvoicing, overdue_days, to_paypal_invoice
@@ -505,6 +505,8 @@ def decide(action_id: str, approve: bool) -> Tuple[AgentAction, Optional[Invoice
         store.save_action(a)
         store.audit("agent_rejected", a.invoice_id, tool=a.tool, action_id=a.id)
         return a, store.get(a.invoice_id)
+    if a.tool == payouts_flow.TOOL:  # collaborator payout (PayPal Payouts API), queued when the milestone was paid
+        return _decide_payout(a)
     problem = guard_action(a.tool, a.params)
     if problem:
         a = a.model_copy(update={"status": "failed", "result": problem, "decided_at": store.now()})
@@ -533,4 +535,23 @@ def decide(action_id: str, approve: bool) -> Tuple[AgentAction, Optional[Invoice
     a = a.model_copy(update={"status": "executed", "result": (result or "ok")[:300], "decided_at": store.now()})
     store.save_action(a)
     store.audit("agent_executed", inv.id, tool=a.tool, action_id=a.id, provider=inv.provider)
+    return a, inv
+
+
+def _decide_payout(a: AgentAction) -> Tuple[AgentAction, Optional[Invoice]]:
+    problem = payouts_flow.guard(a.params)
+    if problem:
+        a = a.model_copy(update={"status": "failed", "result": problem, "decided_at": store.now()})
+        store.save_action(a)
+        return a, store.get(a.invoice_id)
+    store.audit("payout_approved", a.invoice_id, action_id=a.id, amount=a.params.get("amount"))
+    try:
+        inv = payouts_flow.execute(a)
+    except AdapterError as e:
+        a = a.model_copy(update={"status": "failed", "result": e.message[:300], "decided_at": store.now()})
+        store.save_action(a)
+        raise
+    a = a.model_copy(update={"status": "executed", "decided_at": store.now(),
+                             "result": f"payout batch {inv.payout_batch_id}: {inv.payout_status}"[:300]})
+    store.save_action(a)
     return a, inv
