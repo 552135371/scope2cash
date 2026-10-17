@@ -316,7 +316,22 @@ def test_pipeline_accumulates_projects_and_reseed_replaces_samples():
     b = _drafts(c)
     allinv = c.get("/api/invoices").json()
     assert len(allinv) == len(a) + len(b) and allinv[0]["client_name"] == "Bloom Pilates Studio" and allinv[0]["project"]
+    nums = [i["number"] for i in allinv]
+    assert len(set(nums)) == len(nums)  # a second batch the same day continues the sequence instead of reusing numbers
     c.post("/api/demo/seed")
     c.post("/api/demo/seed")
     allinv = c.get("/api/invoices").json()
     assert sum(i["sample"] for i in allinv) == 8 and len(allinv) == len(a) + len(b) + 8
+
+
+def test_frontend_ships_pinned_ag_grid_community_and_keeps_nebius_flow():
+    c = TestClient(app)
+    html = c.get("/").text
+    # MIT-licensed Community build, version-pinned; no Enterprise/Studio bundle (those need a commercial licence key).
+    assert "ag-grid-community@36.2.0/dist/ag-grid-community.min.js" in html
+    assert "ag-grid-enterprise" not in html and "ag-studio" not in html
+    # The original five-step Nebius flow is still there, and the pipeline is additive.
+    for el in ('id="s1"', 'id="s5"', 'id="sample"', 'id="pipe"', 'id="grid"', 'id="ask"'):
+        assert el in html, el
+    js = c.get("/static/pipeline.js")
+    assert js.status_code == 200 and "createGrid" in js.text and "plain" in js.text  # AG Grid + no-CDN fallback

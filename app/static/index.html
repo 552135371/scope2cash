@@ -21,6 +21,7 @@
     <div class="step" data-step="3"><span>3</span><div><b>Market price</b><small>Tavily research</small></div></div>
     <div class="step" data-step="4"><span>4</span><div><b>Quote</b><small>Proposal & terms</small></div></div>
     <div class="step" data-step="5"><span>5</span><div><b>Get paid</b><small>PayPal invoices</small></div></div>
+    <div class="step link" data-step="6" id="nav-pipe"><span>6</span><div><b>Pipeline</b><small>All clients · collections agent</small></div></div>
     <div class="stepper-foot">Human-in-the-loop: nothing is sent to a client until you approve it.</div>
   </nav>
 
@@ -36,6 +37,7 @@
     <section class="card hidden" id="s3"></section>
     <section class="card hidden" id="s4"></section>
     <section class="card hidden" id="s5"></section>
+
   </main>
 
   <aside class="trace">
@@ -46,8 +48,32 @@
   </aside>
 </div>
 
+<div class="wide">
+    <section class="card" id="pipe">
+      <div class="card-head"><h2>Pipeline · every client, every milestone</h2>
+        <div class="row" style="margin:0"><span class="chip" id="grid-engine">AG Grid</span><button class="ghost tiny" id="seed">Load sample clients</button><button class="ghost tiny" id="pipe-refresh">Refresh</button></div></div>
+      <p class="muted small">Every PayPal invoice you've drafted, across clients. Statuses update from verified PayPal webhooks; the collections agent works this table through the PayPal Agent Toolkit and asks before it acts.</p>
+      <div class="kpis" id="kpis"></div>
+      <div class="row between" style="margin-top:10px"><input id="qf" placeholder="Search client, invoice, milestone…" style="max-width:320px">
+        <div class="seg" id="pipe-filter"></div></div>
+      <div id="grid" class="grid-wrap"></div>
+      <div class="grid2 pipe-bottom">
+        <div class="copilot">
+          <h5 class="muted" style="margin:0">COLLECTIONS AGENT <span class="chip" id="tk-chip">PayPal Agent Toolkit</span></h5>
+          <div class="row" style="margin-top:8px"><input id="ask" placeholder="e.g. Nudge everyone more than 3 days late"><button class="pp" id="ask-go">Ask</button></div>
+          <div class="suggest" id="suggest"></div>
+          <div id="agent-out"></div>
+        </div>
+        <div class="events"><h5 class="muted" style="margin:0">PAYPAL WEBHOOK EVENTS</h5><ol id="events"></ol></div>
+      </div>
+    </section>
+</div>
+
 <div class="modal hidden" id="modal"><div class="modal-card" id="modal-card"></div></div>
 <div class="toast hidden" id="toast"></div>
+<!-- AG Grid Community (MIT licence), pinned. If the CDN is unreachable the pipeline falls back to a plain table. -->
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@36.2.0/dist/ag-grid-community.min.js"></script>
 <script src="/static/app.js"></script>
+<script src="/static/pipeline.js"></script>
 </body>
 </html>

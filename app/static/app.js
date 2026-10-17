@@ -50,7 +50,9 @@ let SAMPLES = [];
   const h = await api("/api/health");
   const m = h.adapters.llm.models || {};
   const b = (label, a, extra = "") => `<span class="badge ${extra}" title="${esc(a.provider)}${a.models ? "\n" + esc(Object.entries(a.models).map(([k, v]) => k + ": " + v).join("\n")) : ""}"><span class="dot ${a.mode === "live" ? "live" : ""}"></span>${label} · ${a.mode}</span>`;
-  $("#badges").innerHTML = b("Nemotron @ Nebius", h.adapters.llm, h.warnings.length ? "warn" : "") + b("Tavily", h.adapters.search) + b("PayPal", h.adapters.payments);
+  $("#badges").innerHTML = b("Nemotron @ Nebius", h.adapters.llm, h.warnings.length ? "warn" : "") + b("Tavily", h.adapters.search) + b("PayPal", h.adapters.payments)
+    + (h.adapters.webhooks ? b("Webhooks", h.adapters.webhooks) : "");
+  state.health = h; window.dispatchEvent(new CustomEvent("s2c:health", { detail: h }));
   state.demoEmail = h.demo_client_email;
   const banner = h.warnings.map((w) => `<div>⚠ ${esc(w)}</div>`).concat((h.notices || []).map((n) => `<div>ℹ ${esc(n)}</div>`));
   if (banner.length) { $("#healthwarn").innerHTML = banner.join(""); $("#healthwarn").classList.remove("hidden"); }
@@ -151,7 +153,7 @@ function renderQuote() {
     if (!client_email.includes("@")) return toast("Enter the client's email");
     const r = await api("/api/invoices", { scope: state.scope, quote: state.quote, client_email });
     state.invoices = r.invoices; addTrace(r.trace);
-    renderInvoices(); setStep(5); show("#s5");
+    renderInvoices(); setStep(5); show("#s5"); window.dispatchEvent(new Event("s2c:invoices"));
   });
 }
 
@@ -180,12 +182,23 @@ function renderInvoices() {
   $("#totals").classList.remove("hidden");
   $("#totals").innerHTML = `<div><span>Quoted</span><b>${money(state.quote.total, cur)}</b></div><div><span>Paid</span><b style="color:var(--ok)">${money(paid, cur)}</b></div><div><span>Outstanding</span><b>${money(state.quote.total - paid, cur)}</b></div>`;
   document.querySelectorAll("#s5 [data-a]").forEach((b) => b.onclick = (e) => busy(e.currentTarget, () => act(b.dataset.a, b.dataset.id)));
-  $("#refresh").onclick = async () => { state.invoices = await api("/api/invoices"); renderInvoices(); toast("Statuses refreshed"); };
+  $("#refresh").onclick = async () => {
+    const ids = new Set(state.invoices.map((i) => i.id));
+    state.invoices = (await api("/api/invoices")).filter((i) => ids.has(i.id)); renderInvoices(); toast("Statuses refreshed");
+    window.dispatchEvent(new Event("s2c:invoices"));
+  };
 }
 async function act(a, id) {
-  const replace = (inv) => { state.invoices = state.invoices.map((x) => (x.id === inv.id ? inv : x)); renderInvoices(); };
+  const replace = (inv) => {
+    state.invoices = state.invoices.map((x) => (x.id === inv.id ? inv : x));
+    if (state.quote && state.invoices.some((x) => x.id === inv.id)) renderInvoices();
+    window.dispatchEvent(new Event("s2c:invoices"));
+  };
   if (a === "send") { const inv = await api(`/api/invoices/${id}/send`, {}); replace(inv); toast(inv.provider === "mock" ? "Invoice marked sent (mock: nothing left this machine)" : "Invoice sent via PayPal " + inv.provider.replace("paypal-", "")); }
-  if (a === "pay" || a === "overdue") replace(await api(`/api/demo/${id}/${a}`, {}));
+  if (a === "pay" || a === "overdue" || a === "cancel") {
+    const inv = await api(`/api/demo/${id}/${a}`, {}); replace(inv);
+    if (a !== "overdue") toast(`Simulated PayPal webhook ${inv.last_event || ""} → ${inv.status} (mock-signed, verified)`);
+  }
   if (a === "remind") {
     const r = await api(`/api/invoices/${id}/reminder`, {}); addTrace(r.trace);
     $("#modal-card").innerHTML = `<div class="card-head"><h2>Reminder draft</h2><span class="chip">${esc(r.tone)}</span></div>

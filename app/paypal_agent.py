@@ -406,7 +406,8 @@ def _mock_plan(instruction: str, run: Run) -> str:
             targets, ambiguous = [], True
     elif _REMIND.search(text):
         pool = [it for it in named if it in unpaid] if named else overdue
-        tool, targets = "send_invoice_reminder", [it for it in pool if named or _days_overdue(known[it["id"]]) >= min_days]
+        # A named client/invoice is reminded even if not yet late, unless the request also gives a day threshold.
+        tool, targets = "send_invoice_reminder", [it for it in pool if (named and not m) or _days_overdue(known[it["id"]]) >= min_days]
     for it in targets:
         inv = known[it["id"]]
         _dispatch_raw(client if inv.provider != "mock" else MockToolkitClient(), "get_invoice", {"invoice_id": inv.id}, run)

@@ -118,8 +118,11 @@ def quote(req: QuoteRequest):
 
 def _create_all(pay, req: InvoiceDraftRequest):
     out, n_total = [], len(req.quote.line_items)
+    # The pipeline keeps every batch, so continue today's sequence (live PayPal numbers come from generate-next-invoice-number).
+    prefix = f"S2C-{date.today():%y%m%d}-"
+    used = sum(1 for i in store.all_invoices() if i.number.startswith(prefix))
     for n, li in enumerate(req.quote.line_items, 1):
-        inv = Invoice(id="pending", number=f"S2C-{date.today():%y%m%d}-{n:02d}", milestone=li.milestone, amount=li.amount,
+        inv = Invoice(id="pending", number=f"{prefix}{used + n:02d}", milestone=li.milestone, amount=li.amount,
                       currency=req.quote.currency, due_date=li.due_date, client_email=req.client_email,
                       client_name=req.scope.client_name, project=req.scope.project_title, created_at=store.now())
         note = (f"Milestone {n} of {n_total} for {req.scope.project_title}. Thank you for your business!")

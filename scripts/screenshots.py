@@ -28,7 +28,8 @@ with sync_playwright() as p:
     pg.locator("#s5 [data-a=send]").first.click(); pg.wait_for_selector("#s5 [data-a=overdue]")
     pg.locator("#s5 [data-a=overdue]").first.click(); pg.wait_for_timeout(300)
     pg.locator("#s5 [data-a=send]").first.click(); pg.wait_for_timeout(400)
-    pg.evaluate("window.scrollTo(0, document.body.scrollHeight)"); pg.wait_for_timeout(600)
+    # Step 5 is no longer the bottom of the page (the v0.3 pipeline sits below it), so scroll to it explicitly.
+    pg.evaluate("document.querySelector('#s5').scrollIntoView({block: 'end'}); window.scrollBy(0, 24)"); pg.wait_for_timeout(600)
     pg.screenshot(path=OUT / "05_get_paid.png")
     pg.locator("#s5 [data-a=remind]").first.click(); pg.wait_for_selector("#m-copy"); pg.wait_for_timeout(400)
     pg.screenshot(path=OUT / "06_reminder.png")
