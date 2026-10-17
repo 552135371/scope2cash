@@ -5,7 +5,8 @@ from playwright.sync_api import sync_playwright
 
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "screens")
 OUT.mkdir(parents=True, exist_ok=True)
-URL = "http://localhost:8765/"
+import os
+URL = os.environ.get("S2C_URL", "http://localhost:8765/")
 
 with sync_playwright() as p:
     b = p.chromium.launch()

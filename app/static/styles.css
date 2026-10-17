@@ -68,3 +68,21 @@ tfoot td{font-weight:800;font-size:15px;border-bottom:0}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (max-width:1100px){.layout{grid-template-columns:1fr}.stepper,.trace{position:static}.stepper{flex-direction:row;overflow:auto}.stepper-foot{display:none}}
+/* v0.2 additions */
+.trace li.fallback,.trace li.error{border-color:var(--warn);background:#fffaf0}
+.trace .warn{display:block;color:#8a5a00;font-size:11.5px;margin-top:3px}
+.trace .tier.deep{color:#7a3fd1}.trace .tier.main{color:#2a7a00}.trace .tier.fast{color:var(--brand-d)}.trace .tier.tool{color:var(--pp)}
+.badge.warn{border-color:#f0d27a;background:#fff8e1}
+.healthwarn{max-width:1440px;margin:12px auto 0;padding:0 28px}.healthwarn div{font-size:12.5px;background:#fff8e1;border:1px solid #f0d27a;color:#6b5000;padding:8px 12px;border-radius:10px}
+.conf{display:inline-flex;align-items:center;gap:6px;font-size:12px}.conf .bar{width:70px;height:6px;border-radius:99px;background:#eef1f7;overflow:hidden}.conf .bar i{display:block;height:100%;background:var(--brand)}
+.conf.low .bar i{background:var(--warn)}
+.callout{margin-top:12px;padding:10px 12px;border-radius:10px;font-size:13px;background:#eef6ff;border:1px solid #cfe2ff;color:#123c73}
+.callout.warn{background:#fff8e1;border-color:#f0d27a;color:#6b5000}
+.ask-first li{font-weight:600}
+.ground{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px}.ground.ok{background:#e3f6ea;color:var(--ok)}.ground.no{background:#fde8e8;color:var(--bad)}
+.evidence{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.evidence span{font-size:11.5px;padding:2px 8px;border-radius:6px;background:#f1f3f8;font-variant-numeric:tabular-nums}
+.queries{font-size:12px;color:var(--muted);margin-top:6px}.queries code{font-size:11.5px;background:#f1f3f8;padding:1px 6px;border-radius:5px}
+.pill.PARTIALLY_PAID{background:#fff3d6;color:#8a5a00}.pill.REFUNDED,.pill.CANCELLED{background:#eef1f7;color:#4a5268}
+.samples{display:flex;gap:8px;align-items:center}.samples select{width:auto;padding:8px 10px;font-size:13px}
+.tokens{color:var(--muted);font-size:11px}
+.queries{margin-bottom:36px}

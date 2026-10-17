@@ -1,13 +1,42 @@
-from typing import List, Optional, Literal
-from pydantic import BaseModel, Field
+import re
+from typing import List, Literal, Optional
+
+from pydantic import BaseModel, Field, field_validator
+
+PROJECT_TYPES = ("ios", "mobile", "web", "automation", "design", "data")
+Mode = Literal["live", "mock", "fallback", "error"]
+
+
+def _num(v, default: float) -> float:
+    """Models sometimes return '10-12' or '12h'; take the mean of the numbers present."""
+    if isinstance(v, (int, float)):
+        return float(v)
+    nums = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", str(v or ""))]
+    return sum(nums[:2]) / len(nums[:2]) if nums else default
+
+
+def _strs(v) -> List[str]:
+    if v is None:
+        return []
+    if isinstance(v, str):
+        return [v]
+    out = []
+    for x in v:
+        if isinstance(x, dict):
+            x = x.get("text") or x.get("title") or x.get("question") or x.get("description") or " ".join(map(str, x.values()))
+        out.append(str(x))
+    return out
 
 
 class TraceStep(BaseModel):
     step: str
     model: str
-    mode: Literal["live", "mock"]
+    mode: Mode
     ms: int
+    tier: str = "tool"  # fast | main | deep | tool
     note: str = ""
+    warning: str = ""
+    tokens: int = 0
 
 
 class Milestone(BaseModel):
@@ -16,20 +45,67 @@ class Milestone(BaseModel):
     est_hours: float
     weeks: float = 1
 
+    @field_validator("est_hours", mode="before")
+    @classmethod
+    def _h(cls, v):
+        return max(1.0, min(_num(v, 8), 400.0))
+
+    @field_validator("weeks", mode="before")
+    @classmethod
+    def _w(cls, v):
+        return max(0.5, min(_num(v, 1), 26.0))
+
+    @field_validator("deliverables", mode="before")
+    @classmethod
+    def _d(cls, v):
+        return _strs(v)
+
 
 class Scope(BaseModel):
     project_title: str
     client_name: str = "Client"
     summary: str
     project_type: str = "web"
-    milestones: List[Milestone]
+    milestones: List[Milestone] = Field(min_length=1)
     assumptions: List[str] = []
     risks: List[str] = []
     open_questions: List[str] = []
+    confidence: float = 0.7  # how complete the brief is (0-1); low -> ask before quoting
+    client_budget: Optional[float] = None
+    deadline: Optional[str] = None
+    language: str = "en"
+    contact_name: Optional[str] = None
+
+    @field_validator("project_type", mode="before")
+    @classmethod
+    def _pt(cls, v):
+        v = str(v or "web").lower().strip()
+        aliases = {"android": "mobile", "flutter": "mobile", "react native": "mobile", "website": "web", "saas": "web",
+                   "n8n": "automation", "zapier": "automation", "branding": "design", "logo": "design", "scraping": "data"}
+        return v if v in PROJECT_TYPES else aliases.get(v, "web")
+
+    @field_validator("assumptions", "risks", "open_questions", mode="before")
+    @classmethod
+    def _l(cls, v):
+        return _strs(v)
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def _c(cls, v):
+        x = _num(v, 0.7)
+        return max(0.0, min(x / 100 if x > 1 else x, 1.0))
+
+    @field_validator("client_budget", mode="before")
+    @classmethod
+    def _b(cls, v):
+        if v in (None, "", 0, "null", "unknown"):
+            return None
+        x = _num(v, 0)
+        return x or None
 
 
 class ScopeRequest(BaseModel):
-    requirement: str = Field(min_length=20)
+    requirement: str = Field(min_length=20, max_length=20000)
 
 
 class ScopeResponse(BaseModel):
@@ -41,6 +117,7 @@ class Source(BaseModel):
     title: str
     url: str
     snippet: str = ""
+    score: Optional[float] = None
 
 
 class PricingReference(BaseModel):
@@ -53,6 +130,9 @@ class PricingReference(BaseModel):
     rationale: str
     sources: List[Source] = []
     mock: bool = False
+    grounded: bool = False  # True when the hourly range is backed by figures found in the cited sources
+    evidence: List[str] = []  # the dollar figures we found in the sources
+    queries: List[str] = []
 
 
 class PricingRequest(BaseModel):
@@ -70,6 +150,7 @@ class LineItem(BaseModel):
     amount: float
     due_date: str
     percent: float
+    deliverables: List[str] = []
 
 
 class Quote(BaseModel):
@@ -80,18 +161,22 @@ class Quote(BaseModel):
     terms: List[str]
     cover_message: str
     negotiation_tips: List[str] = []
+    budget_note: str = ""
 
 
 class QuoteRequest(BaseModel):
     scope: Scope
     pricing: PricingReference
-    hourly_rate: Optional[float] = None
+    hourly_rate: Optional[float] = Field(default=None, gt=0, le=1000)
     position: Literal["value", "market", "premium"] = "market"
 
 
 class QuoteResponse(BaseModel):
     quote: Quote
     trace: List[TraceStep]
+
+
+InvoiceStatus = Literal["DRAFT", "SENT", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED", "REFUNDED"]
 
 
 class Invoice(BaseModel):
@@ -102,16 +187,25 @@ class Invoice(BaseModel):
     currency: str
     due_date: str
     client_email: str
-    status: Literal["DRAFT", "SENT", "PAID", "OVERDUE", "CANCELLED"] = "DRAFT"
+    status: InvoiceStatus = "DRAFT"
     payer_link: str = ""
     days_overdue: int = 0
     provider: Literal["paypal-sandbox", "paypal-live", "mock"] = "mock"
+    provider_status: str = ""  # raw PayPal status, e.g. UNPAID, PAYMENT_PENDING
+    amount_due: Optional[float] = None
+    approved_at: str = ""
+    reminded_at: str = ""
 
 
 class InvoiceDraftRequest(BaseModel):
     scope: Scope
     quote: Quote
-    client_email: str
+    client_email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+class InvoiceDraftResponse(BaseModel):
+    invoices: List[Invoice]
+    trace: List[TraceStep]
 
 
 class ReminderResponse(BaseModel):
@@ -119,4 +213,10 @@ class ReminderResponse(BaseModel):
     subject: str
     body: str
     tone: str
+    trace: List[TraceStep]
+    provider_note: str = ""
+
+
+class ReminderSendResponse(BaseModel):
+    invoice: Invoice
     trace: List[TraceStep]

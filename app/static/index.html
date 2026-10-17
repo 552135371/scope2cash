@@ -12,6 +12,7 @@
   <div class="brand"><span class="logo">S2C</span><div><b>Scope2Cash</b><small>Brief → scope → quote → paid</small></div></div>
   <div class="badges" id="badges"></div>
 </header>
+<div class="healthwarn hidden" id="healthwarn"></div>
 
 <div class="layout">
   <nav class="stepper" id="stepper">
@@ -25,7 +26,7 @@
 
   <main id="main">
     <section class="card" id="s1">
-      <div class="card-head"><h2>1 · Client brief</h2><button class="ghost" id="sample">Use sample brief</button></div>
+      <div class="card-head"><h2>1 · Client brief</h2><div class="samples"><select id="samples" aria-label="Sample briefs"></select><button class="ghost" id="sample">Use sample brief</button></div></div>
       <p class="muted">Paste an email, chat thread, or Upwork job post. The agent turns it into a fixed scope you can quote.</p>
       <textarea id="brief" rows="8" placeholder="e.g. Hi! I'm Sarah from Bloom Pilates. We need an iOS app where members can book classes..."></textarea>
       <div class="row end"><button class="primary" id="go-scope">Analyze brief <span class="kbd">⌘↵</span></button></div>
@@ -39,7 +40,7 @@
 
   <aside class="trace">
     <h3>Agent trace</h3>
-    <p class="muted small">Every step and the Nemotron model tier it was routed to.</p>
+    <p class="muted small">Every step, the Nemotron tier it was routed to (fast = Nano, main = Super, deep = Ultra), and whether it ran live, mock, or fell back.</p>
     <ol id="trace"></ol>
     <div class="totals hidden" id="totals"></div>
   </aside>

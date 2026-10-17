@@ -26,10 +26,15 @@ function addTrace(steps) {
   const ol = $("#trace");
   steps.forEach((t) => {
     const li = document.createElement("li");
-    const tier = t.model.includes("Nano") ? "fast" : t.model.includes("Ultra") ? "deep" : t.model.includes("super") ? "main" : "tool";
-    if (tier === "tool") li.className = "tool";
-    li.innerHTML = `<b>${esc(t.step)}</b><span class="tier">${tier}</span><code>${esc(t.model)}</code><br><span class="muted">${t.ms} ms · ${t.mode}${t.note ? " · " + esc(t.note) : ""}</span>`;
+    const tier = t.tier || "tool";
+    li.className = [tier === "tool" ? "tool" : "", t.mode === "fallback" || t.mode === "error" ? t.mode : ""].join(" ").trim();
+    const mode = t.mode === "fallback" ? "⚠ fallback" : t.mode;
+    li.innerHTML = `<b>${esc(t.step)}</b><span class="tier ${esc(tier)}">${esc(tier)}</span><code>${esc(t.model)}</code><br>` +
+      `<span class="muted">${t.ms} ms · ${esc(mode)}${t.note ? " · " + esc(t.note) : ""}</span>` +
+      (t.tokens ? ` <span class="tokens">· ${t.tokens.toLocaleString()} tok</span>` : "") +
+      (t.warning ? `<span class="warn">${esc(t.warning)}</span>` : "");
     ol.appendChild(li);
+    if (t.warning) toast("⚠ " + t.warning.slice(0, 140));
   });
   ol.scrollTop = ol.scrollHeight;
 }
@@ -40,14 +45,20 @@ async function busy(btn, fn) {
 function show(id) { const el = $(id); el.classList.remove("hidden"); setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }
 
 // ---------- health
+let SAMPLES = [];
 (async () => {
   const h = await api("/api/health");
-  const b = (label, a) => `<span class="badge" title="${esc(a.provider)}"><span class="dot ${a.mode === "live" ? "live" : ""}"></span>${label} · ${a.mode}</span>`;
-  $("#badges").innerHTML = b("Nemotron @ Nebius", h.adapters.llm) + b("Tavily", h.adapters.search) + b("PayPal", h.adapters.payments);
+  const m = h.adapters.llm.models || {};
+  const b = (label, a, extra = "") => `<span class="badge ${extra}" title="${esc(a.provider)}${a.models ? "\n" + esc(Object.entries(a.models).map(([k, v]) => k + ": " + v).join("\n")) : ""}"><span class="dot ${a.mode === "live" ? "live" : ""}"></span>${label} · ${a.mode}</span>`;
+  $("#badges").innerHTML = b("Nemotron @ Nebius", h.adapters.llm, h.warnings.length ? "warn" : "") + b("Tavily", h.adapters.search) + b("PayPal", h.adapters.payments);
+  if (h.warnings.length) { $("#healthwarn").innerHTML = h.warnings.map((w) => `<div>⚠ ${esc(w)}</div>`).join(""); $("#healthwarn").classList.remove("hidden"); }
+  SAMPLES = await api("/api/samples");
+  $("#samples").innerHTML = SAMPLES.map((x, i) => `<option value="${i}">${esc(x.title)}</option>`).join("");
 })();
 
 // ---------- step 1
-$("#sample").onclick = () => { $("#brief").value = SAMPLE; };
+$("#sample").onclick = () => { const x = SAMPLES[+$("#samples").value]; $("#brief").value = x ? x.brief : SAMPLE; };
+$("#samples").onchange = () => $("#sample").click();
 $("#brief").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") $("#go-scope").click(); });
 $("#go-scope").onclick = (e) => busy(e.currentTarget, async () => {
   const requirement = $("#brief").value.trim();
@@ -62,8 +73,10 @@ function renderScope() {
   const s = state.scope;
   const total = s.milestones.reduce((a, m) => a + Number(m.est_hours), 0);
   $("#s2").innerHTML = `
-    <div class="card-head"><h2>2 · Scope: ${esc(s.project_title)}</h2><div class="chips"><span class="chip">${esc(s.project_type)}</span><span class="chip">${esc(s.client_name)}</span><span class="chip" id="hrs-total">${total} h</span></div></div>
+    <div class="card-head"><h2>2 · Scope: ${esc(s.project_title)}</h2><div class="chips"><span class="chip">${esc(s.project_type)}</span><span class="chip">${esc(s.client_name)}</span><span class="chip" id="hrs-total">${total} h</span>${s.client_budget ? `<span class="chip">budget ${money(s.client_budget)}</span>` : ""}${s.deadline ? `<span class="chip">⏱ ${esc(s.deadline)}</span>` : ""}${s.language && s.language !== "en" ? `<span class="chip">brief: ${esc(s.language)}</span>` : ""}</div></div>
     <div class="summary">${esc(s.summary)}</div>
+    <div class="row between" style="margin-top:8px"><span class="conf ${s.confidence < 0.5 ? "low" : ""}">Brief completeness <span class="bar"><i style="width:${Math.round(s.confidence * 100)}%"></i></span> ${Math.round(s.confidence * 100)}%</span></div>
+    ${s.confidence < 0.5 ? `<div class="callout warn">This brief is thin. Send the client the questions below before committing to a fixed price, or quote milestone 1 as paid discovery.</div>` : ""}
     <div class="ms-grid">${s.milestones.map((m, i) => `
       <div class="ms"><div class="n">MILESTONE ${i + 1}</div><h4>${esc(m.title)}</h4>
         <ul>${m.deliverables.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>
@@ -72,7 +85,7 @@ function renderScope() {
     <div class="cols3">
       <div><h5>Assumptions</h5><ul>${s.assumptions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
       <div><h5>Risks</h5><ul>${s.risks.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
-      <div><h5>Ask the client</h5><ul>${s.open_questions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
+      <div><h5>Ask the client</h5><ul class="${s.confidence < 0.5 ? "ask-first" : ""}">${s.open_questions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
     </div>
     <div class="row end"><button class="primary" id="go-price">Research market price →</button></div>`;
   document.querySelectorAll(".hrs-in").forEach((inp) => inp.oninput = () => {
@@ -91,8 +104,10 @@ function renderPricing() {
   const span = Math.max(p.high - p.low, 1);
   const pos = (v) => Math.min(100, Math.max(0, ((v - p.low) / span) * 100));
   $("#s3").innerHTML = `
-    <div class="card-head"><h2>3 · Market price reference</h2><span class="chip">${money(p.hourly_low)}–${money(p.hourly_high)}/h</span></div>
+    <div class="card-head"><h2>3 · Market price reference</h2><div class="chips"><span class="ground ${p.grounded ? "ok" : "no"}">${p.grounded ? "✓ grounded in sources" : "✗ unverified placeholder"}</span><span class="chip">${money(p.hourly_low)}–${money(p.hourly_high)}/h</span></div></div>
     <p class="muted">${esc(p.rationale)}</p>
+    ${p.evidence?.length ? `<div class="evidence"><span class="muted" style="background:none">Figures found in sources:</span>${p.evidence.map((e) => `<span>${esc(e)}</span>`).join("")}</div>` : ""}
+    ${p.queries?.length ? `<div class="queries">Tavily queries: ${p.queries.map((q) => `<code>${esc(q)}</code>`).join(" ")}</div>` : ""}
     <div class="range"><div class="mk" style="left:${pos(p.median)}%">Market ${money(p.median)}</div><div class="mk you" style="left:${pos(q.total)}%;top:24px">You ${money(q.total)}</div></div>
     <div class="range-labels" style="margin-top:34px"><span>Low ${money(p.low)}</span><span>High ${money(p.high)}</span></div>
     <div class="sources">${p.sources.map((s) => `<div class="src"><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a><div class="muted">${esc(s.snippet)}</div></div>`).join("")}</div>
@@ -115,6 +130,7 @@ function renderQuote() {
     <table><thead><tr><th>#</th><th>Milestone</th><th class="num">Hours</th><th>Due</th><th class="num">%</th><th class="num">Amount</th></tr></thead>
       <tbody>${q.line_items.map((li, i) => `<tr><td>${i + 1}</td><td>${esc(li.milestone)}</td><td class="num">${li.hours}</td><td>${li.due_date}</td><td class="num">${li.percent}%</td><td class="num">${money(li.amount, q.currency)}</td></tr>`).join("")}</tbody>
       <tfoot><tr><td></td><td>Total @ ${money(q.hourly_rate)}/h</td><td class="num">${q.line_items.reduce((a, l) => a + l.hours, 0)}</td><td></td><td></td><td class="num">${money(q.total, q.currency)}</td></tr></tfoot></table>
+    ${q.budget_note ? `<div class="callout ${q.budget_note.includes("above") ? "warn" : ""}">${esc(q.budget_note)}</div>` : ""}
     <div class="grid2">
       <div><h5 class="muted" style="margin:0">PROPOSAL MESSAGE</h5><div class="letter">${esc(q.cover_message)}</div></div>
       <div><h5 class="muted" style="margin:0">NEGOTIATION COACH <span class="chip">deep model</span></h5><ul class="tips">${q.negotiation_tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>
@@ -131,8 +147,8 @@ function renderQuote() {
   $("#go-inv").onclick = (e) => busy(e.currentTarget, async () => {
     const client_email = $("#email").value.trim();
     if (!client_email.includes("@")) return toast("Enter the client's email");
-    state.invoices = await api("/api/invoices", { scope: state.scope, quote: state.quote, client_email });
-    addTrace([{ step: "Create PayPal invoice drafts", model: "paypal-invoicing-v2", mode: state.invoices[0]?.provider === "mock" ? "mock" : "live", ms: 0, note: `${state.invoices.length} drafts` }]);
+    const r = await api("/api/invoices", { scope: state.scope, quote: state.quote, client_email });
+    state.invoices = r.invoices; addTrace(r.trace);
     renderInvoices(); setStep(5); show("#s5");
   });
 }
@@ -141,7 +157,7 @@ function renderQuote() {
 function renderInvoices() {
   const inv = state.invoices, cur = state.quote.currency;
   const sum = (f) => inv.filter(f).reduce((a, i) => a + i.amount, 0);
-  const paid = sum((i) => i.status === "PAID"), sent = sum((i) => ["SENT", "OVERDUE"].includes(i.status)), draft = sum((i) => i.status === "DRAFT");
+  const paid = sum((i) => i.status === "PAID"), sent = sum((i) => ["SENT", "OVERDUE", "PARTIALLY_PAID"].includes(i.status)), draft = sum((i) => i.status === "DRAFT");
   const demo = inv[0]?.provider === "mock";
   $("#s5").innerHTML = `
     <div class="card-head"><h2>5 · Get paid</h2><span class="chip">${demo ? "PayPal mock" : "PayPal " + inv[0]?.provider}</span></div>
@@ -152,7 +168,8 @@ function renderInvoices() {
     ${inv.map((i) => `<tr><td><b>${esc(i.number)}</b><br><span class="muted small">${esc(i.id)}</span></td><td>${esc(i.milestone)}</td><td>${i.due_date}</td>
       <td class="num">${money(i.amount, cur)}</td><td><span class="pill ${i.status}">${i.status}</span>${i.status === "OVERDUE" && i.days_overdue ? `<br><span class="muted small">${i.days_overdue} days late (simulated)</span>` : ""}</td><td><div class="acts">
       ${i.status === "DRAFT" ? `<button class="pp tiny" data-a="send" data-id="${i.id}">Approve & send</button>` : ""}
-      ${["SENT", "OVERDUE"].includes(i.status) ? `<button class="ghost tiny" data-a="remind" data-id="${i.id}">Draft reminder</button>` : ""}
+      ${["SENT", "OVERDUE", "PARTIALLY_PAID"].includes(i.status) ? `<button class="ghost tiny" data-a="remind" data-id="${i.id}">Draft reminder</button>` : ""}
+      ${!demo && i.payer_link && i.status !== "DRAFT" ? `<a class="ghost tiny" style="text-decoration:none;color:var(--pp)" href="${esc(i.payer_link)}" target="_blank" rel="noopener">Payer view ↗</a>` : ""}
       ${demo && i.status === "SENT" ? `<button class="ghost tiny" data-a="overdue" data-id="${i.id}">⏩ overdue</button><button class="ghost tiny" data-a="pay" data-id="${i.id}">⏩ paid</button>` : ""}
       ${demo && i.status === "OVERDUE" ? `<button class="ghost tiny" data-a="pay" data-id="${i.id}">⏩ paid</button>` : ""}
       </div></td></tr>`).join("")}</tbody></table>
@@ -170,11 +187,16 @@ async function act(a, id) {
   if (a === "remind") {
     const r = await api(`/api/invoices/${id}/reminder`, {}); addTrace(r.trace);
     $("#modal-card").innerHTML = `<div class="card-head"><h2>Reminder draft</h2><span class="chip">${esc(r.tone)}</span></div>
-      <p class="muted small">Review before sending — the agent never contacts clients on its own.</p>
-      <input value="${esc(r.subject)}" style="margin-top:8px"><div class="letter" contenteditable="true">${esc(r.body)}</div>
-      <div class="row end"><button class="ghost" id="m-close">Close</button><button class="primary" id="m-copy">Copy reminder</button></div>`;
+      <p class="muted small">Review before anything goes out. The agent never contacts clients on its own.</p>
+      <input id="m-subj" value="${esc(r.subject)}" style="margin-top:8px"><div class="letter" id="m-body" contenteditable="true">${esc(r.body)}</div>
+      ${r.provider_note ? `<p class="muted small">ℹ ${esc(r.provider_note)}</p>` : ""}
+      <div class="row end"><button class="ghost" id="m-close">Close</button><button class="ghost" id="m-copy">Copy personal note</button><button class="pp" id="m-send">Approve & send PayPal reminder</button></div>`;
     $("#modal").classList.remove("hidden");
     $("#m-close").onclick = () => $("#modal").classList.add("hidden");
-    $("#m-copy").onclick = () => { navigator.clipboard?.writeText(r.subject + "\n\n" + r.body); toast("Reminder copied"); $("#modal").classList.add("hidden"); };
+    $("#m-copy").onclick = () => { navigator.clipboard?.writeText($("#m-subj").value + "\n\n" + $("#m-body").innerText); toast("Reminder copied"); };
+    $("#m-send").onclick = (e) => busy(e.currentTarget, async () => {
+      const s = await api(`/api/invoices/${id}/remind`, {}); addTrace(s.trace); replace(s.invoice);
+      $("#modal").classList.add("hidden"); toast("PayPal reminder sent for " + s.invoice.number);
+    });
   }
 }

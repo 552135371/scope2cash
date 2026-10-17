@@ -1,0 +1,68 @@
+[
+  {
+    "id": "pilates_ios",
+    "title": "iOS studio app (detailed)",
+    "brief": "Hi! I'm Sarah from Bloom Pilates Studio in Austin. We want an iOS app for our members.\n\nMembers should be able to sign up, see the weekly class schedule, book or cancel a class, and get reminder notifications an hour before class. We'd also like to sell 10-class packs and a monthly membership inside the app (subscription).\n\nOn our side we need a simple admin dashboard to manage classes, instructors and see bookings. Bonus: an AI assistant that answers common questions (parking, what to bring, cancellation policy).\n\nWe'd love to launch before our spring promo in March. Budget is flexible but we're a small studio. Can you send a proposal?",
+    "expect": {"project_type": ["ios"], "hours": [80, 220], "vague": false, "creep": true, "budget": null, "deadline": true, "client_name": "Bloom Pilates Studio"}
+  },
+  {
+    "id": "client_portal_web",
+    "title": "SaaS client portal (web, budget stated)",
+    "brief": "We're Ledgerly, a 4-person bookkeeping firm. We need a secure client portal web app: clients log in, upload receipts and bank statements (PDF or photos), see a monthly reports dashboard, and message their accountant. We'd also like Stripe billing for our monthly retainer. Budget around $12k. Ideally live by the end of January so we're ready for tax season.",
+    "expect": {"project_type": ["web"], "hours": [70, 200], "vague": false, "creep": false, "budget": 12000, "deadline": true, "client_name": "Ledgerly"}
+  },
+  {
+    "id": "n8n_leads",
+    "title": "n8n lead automation (small, budget stated)",
+    "brief": "Need an n8n workflow for our agency: when a lead fills our website form, enrich it, push it to HubSpot, classify it with GPT as hot/warm/cold, alert our Slack channel for hot leads, and log every lead in Google Sheets. Budget $800 max. We already self-host n8n.",
+    "expect": {"project_type": ["automation"], "hours": [12, 45], "vague": false, "creep": false, "budget": 800, "deadline": false}
+  },
+  {
+    "id": "bakery_logo",
+    "title": "Logo & brand kit (design)",
+    "brief": "Hello! I'm opening a small bakery called Crumb & Co in Lisbon next spring. I need a logo, a simple brand guide (colors, fonts) and a few Instagram post templates. Maybe later also a menu design and packaging labels. I love warm, hand-drawn styles.",
+    "expect": {"project_type": ["design"], "hours": [20, 70], "vague": false, "creep": true, "budget": null, "deadline": false, "client_name": "Crumb & Co"}
+  },
+  {
+    "id": "price_scraper",
+    "title": "Competitor price scraper (data)",
+    "brief": "Looking for a Python developer to build a scraper that collects product prices and stock levels from 3 competitor online stores every day. Two of them are behind Cloudflare. Results should be cleaned and exported to Google Sheets, with an alert if a run fails.",
+    "expect": {"project_type": ["data"], "hours": [25, 90], "vague": false, "creep": false, "budget": null, "deadline": false}
+  },
+  {
+    "id": "vague_uber",
+    "title": "Vague one-liner",
+    "brief": "Need an app like Uber but for dog walkers. How much would it cost?",
+    "expect": {"project_type": ["web", "mobile", "ios"], "hours": [30, 250], "vague": true, "creep": true, "budget": null, "deadline": false}
+  },
+  {
+    "id": "camping_marketplace",
+    "title": "Scope-creepy marketplace",
+    "brief": "We want a marketplace website like Airbnb but for camping spots: listings, booking calendar, payments, reviews, messaging between hosts and campers, maps, admin panel, mobile-friendly, multi-language, etc. Unlimited revisions please, and we need it ASAP. Small budget, maybe $3,000.",
+    "expect": {"project_type": ["web"], "hours": [120, 400], "vague": false, "creep": true, "budget": 3000, "deadline": true}
+  },
+  {
+    "id": "cafe_spanish",
+    "title": "Non-English brief (Spanish)",
+    "brief": "Hola! Soy Lucía de Café Aroma en Madrid. Necesito una aplicación móvil para pedidos: menú, carrito, pagos con tarjeta y notificaciones cuando el pedido está listo. También un panel para el personal. Presupuesto: 5.000 euros. Gracias!",
+    "expect": {"project_type": ["mobile"], "hours": [60, 200], "vague": false, "creep": false, "budget": 5000, "deadline": false, "language": "es", "client_name": "Café Aroma"}
+  },
+  {
+    "id": "dental_ai_receptionist",
+    "title": "AI receptionist with compliance",
+    "brief": "This is Mark from Northwind Dental (3 clinics). We want an AI receptionist on our website that answers FAQs from our documents, books appointments into our Google Calendar, and hands off to staff by email when it can't help. HIPAA matters since patients may share health info. We'd like to launch within 6 weeks.",
+    "expect": {"project_type": ["web"], "hours": [60, 180], "vague": false, "creep": true, "budget": null, "deadline": true, "client_name": "Northwind Dental"}
+  },
+  {
+    "id": "fitness_flutter",
+    "title": "Cross-platform fitness app (budget range)",
+    "brief": "We're FitNest, building a Flutter app (iOS + Android) for home workouts: video classes, progress tracking, offline mode, push reminders, a subscription paywall, and an admin CMS to upload videos. Budget $15-20k, target launch in Q2.",
+    "expect": {"project_type": ["mobile"], "hours": [110, 300], "vague": false, "creep": false, "budget": 20000, "deadline": true, "client_name": "FitNest"}
+  },
+  {
+    "id": "yoga_wordpress",
+    "title": "Small WordPress site",
+    "brief": "Need a 5-page WordPress website for my yoga studio: home, classes, teachers, pricing and a contact form, plus basic SEO so people nearby can find us. Budget $1,500, and I'd like it done by November 15.",
+    "expect": {"project_type": ["web"], "hours": [20, 70], "vague": false, "creep": false, "budget": 1500, "deadline": true}
+  }
+]
