@@ -271,7 +271,8 @@ def test_agent_live_tool_calling_loop_with_nemotron_and_paypal(live):
     out = c.post("/api/agent/collections", json={"instruction": "Who owes me money? Chase anyone late."}).json()
     first = nebius_bodies[0]
     assert first["model"] == config.DEFAULT_MODEL_MAIN and first["tool_choice"] == "auto"
-    assert {t["function"]["name"] for t in first["tools"]} == {"list_invoices", "get_invoice", "send_invoice_reminder", "cancel_sent_invoice"}
+    assert {t["function"]["name"] for t in first["tools"]} == {"list_invoices", "get_invoice", "send_invoice_reminder", "cancel_sent_invoice",
+                                                              "get_cash_flow_summary", "propose_collaborator_payout"}
     tool_msgs = [m for m in nebius_bodies[2]["messages"] if m["role"] == "tool"]
     assert json.loads(tool_msgs[0]["content"])["items"][0]["id"] == inv.id  # compacted list_invoices result
     assert "QUEUED_FOR_HUMAN_APPROVAL" in tool_msgs[1]["content"] and "refused" in tool_msgs[2]["content"]

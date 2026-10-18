@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from . import config, store
+from . import config, fx, store
 from .adapters.payouts import payouts_for
 from .models import AgentAction, Invoice
 
@@ -38,6 +38,10 @@ def set_split(inv: Invoice, label: str, email: str, amount: Optional[float], per
     def supersede(why: str) -> None:
         if prior:
             store.save_action(prior.model_copy(update={"status": "rejected", "decided_at": store.now(), "result": why}))
+        # A payout the collections agent proposed for this milestone is superseded too: the human just decided the split.
+        for a in store.actions("pending", limit=500):
+            if a.tool == TOOL and a.invoice_id == inv.id and a.id != action_id(inv):
+                store.save_action(a.model_copy(update={"status": "rejected", "decided_at": store.now(), "result": why}))
 
     if amount <= 0:
         supersede("split removed")
@@ -48,7 +52,7 @@ def set_split(inv: Invoice, label: str, email: str, amount: Optional[float], per
     if "@" not in email or " " in email:
         raise ValueError("enter the collaborator's PayPal email")
     if amount > inv.amount:
-        raise ValueError(f"the share (${amount:,.2f}) can't exceed the milestone (${inv.amount:,.2f})")
+        raise ValueError(f"the share ({fx.fmt(amount, inv.currency, 2)}) can't exceed the milestone ({fx.fmt(inv.amount, inv.currency, 2)})")
     if not config.get_settings().recipient_allowed(email):
         raise ValueError("this public demo only pays sandbox recipients (*example.com)")
     supersede("split changed")  # a new split is a new decision: queue_if_paid may propose again
@@ -93,9 +97,9 @@ def queue_if_paid(inv: Optional[Invoice]) -> Optional[AgentAction]:
     if guard(params):
         return None
     a = AgentAction(id=action_id(inv), tool=TOOL, params=params, invoice_id=inv.id, invoice_number=inv.number,
-                    summary=f"Pay {inv.split_label} ${inv.split_amount:,.2f} of {inv.number} · PayPal Payouts",
+                    summary=f"Pay {inv.split_label} {fx.fmt(inv.split_amount, inv.currency, 2)} of {inv.number} · PayPal Payouts",
                     reason=f"{inv.client_name or inv.client_email} paid “{inv.milestone}”; your split sends "
-                           f"${inv.split_amount:,.2f} of ${inv.amount:,.2f} to {inv.split_email}",
+                           f"{fx.fmt(inv.split_amount, inv.currency, 2)} of {fx.fmt(inv.amount, inv.currency, 2)} to {inv.split_email}",
                     created_at=store.now())
     store.save_action(a)
     store.audit("payout_queued", inv.id, amount=inv.split_amount, provider=inv.provider)
