@@ -109,22 +109,24 @@ def who_owes_me(client: str = "", today: Optional[date] = None) -> Dict[str, Any
     total = round(sum(c["owed"] for c in owing), 2)
     overdue = round(sum(c["overdue"] for c in owing), 2)
     late = [c for c in owing if c["overdue"] > 0]
-    parts = []
-    for c in owing[:3]:
-        bit = f"{c['client']} owes {money(c['owed'])}"
-        if c["oldest_late"] > 0:
-            bit += f", {_days(c['oldest_late'])} late"
-        parts.append(bit)
-    if len(owing) == 1:
-        speech = parts[0] + "."
+
+    def late_bit(c: Dict[str, Any]) -> str:
+        return f"{money(c['overdue'])}, {_days(c['oldest_late'])} late" if c["oldest_late"] > 0 else f"{money(c['owed'])}, not due yet"
+
+    if client or len(owing) == 1:
+        c = owing[0]
+        speech = f"{c['client']} owes {late_bit(c)}."
+        if c["owed"] > c["overdue"] > 0:
+            speech = f"{c['client']} owes {money(c['owed'])}; {money(c['overdue'])} of it is {_days(c['oldest_late'])} late."
     else:
-        speech = f"{len(owing)} clients owe you {money(total)} in total. " + "; ".join(parts)
-        speech += (f"; plus {len(owing) - 3} more." if len(owing) > 3 else ".")
-    if late and not client:
-        worst = late[0]
-        speech += f" {worst['client']} has the biggest overdue balance. Want me to queue a reminder for your approval?"
-    elif late:
-        speech += " Want me to queue a reminder for your approval?"
+        speech = f"{len(owing)} clients owe you {money(total)}"
+        speech += f", and {money(overdue)} of that is overdue." if overdue else ", none of it overdue yet."
+        if late:
+            speech += f" The biggest overdue balance is {late[0]['client']}: {late_bit(late[0])}."
+            if len(late) > 1:
+                speech += f" Then {late[1]['client']}, {late_bit(late[1])}."
+    if late:
+        speech += f" Want me to queue a reminder to {late[0]['client'] if not client else 'them'}? You'd approve it first."
     rows = [{"label": c["client"], "value": money(c["owed"]),
              "note": (f"{_days(c['oldest_late'])} late" if c["oldest_late"] else (f"due {c['next_due']}" if c["next_due"] else "")),
              "mood": c["mood"]} for c in owing]
@@ -152,11 +154,11 @@ def cashflow_this_week(today: Optional[date] = None) -> Dict[str, Any]:
         elif b == "overdue":
             overdue += pipeline_stats.amount_due(inv)
     collected, due, overdue = round(collected, 2), round(due, 2), round(overdue, 2)
-    speech = (f"This week you've collected {money(collected)}." if collected else "Nothing has come in yet this week.")
-    speech += (f" {money(due)} more is due by Sunday, from {join_names(sorted(set(due_names)))}." if due
-               else " Nothing else is due this week.")
+    bits = [f"you've collected {money(collected)}" if collected else "nothing has come in yet"]
+    bits.append(f"{money(due)} is still due by Sunday, from {join_names(sorted(set(due_names)))}" if due else "nothing else is due")
+    speech = "This week, " + bits[0] + ", and " + bits[1] + "."
     if overdue:
-        speech += f" And {money(overdue)} is already overdue."
+        speech += f" {money(overdue)} from earlier weeks is overdue."
     rows = [{"label": "Collected this week", "value": money(collected)},
             {"label": "Due by Sunday", "value": money(due)},
             {"label": "Already overdue", "value": money(overdue)}]
@@ -171,10 +173,20 @@ def pending_approvals() -> Dict[str, Any]:
     acts = [a for a in acts if a.invoice_id in open_ids]
     if not acts:
         return {"speech": "Nothing is waiting for your approval.", "card": _card("Waiting for approval", []), "data": {"actions": []}}
-    n = len(acts)
-    speech = (f"{n} {'thing is' if n == 1 else 'things are'} waiting for your approval: "
-              + "; ".join(a.summary.split(" · ")[0] + " for " + (a.summary.split(" · ")[1] if " · " in a.summary else a.invoice_number)
-                          for a in acts[:3]) + ". Approve them in Scope2Cash; I never send anything on my own.")
+    rem = [a for a in acts if a.tool == REMIND_TOOL]
+    other = [a for a in acts if a.tool != REMIND_TOOL]
+    names = []
+    for a in rem[:3]:
+        inv = store.get(a.invoice_id)
+        names.append(f"{inv.client_name or inv.client_email}, {money(pipeline_stats.amount_due(inv))}" if inv else a.invoice_number)
+    head = []
+    if rem:
+        head.append(f"{len(rem)} {'reminder' if len(rem) == 1 else 'reminders'}")
+    if other:
+        head.append(f"{len(other)} collaborator {'payout' if len(other) == 1 else 'payouts'}")
+    total = len(rem) + len(other)
+    speech = (f"{' and '.join(head)} {'is' if total == 1 else 'are'} waiting for your approval"
+              + (": " + "; ".join(names) if names else "") + f". You approve {'it' if total == 1 else 'them'} with a tap in Scope2Cash.")
     rows = [{"label": a.summary, "value": a.status, "id": a.id} for a in acts]
     return {"speech": speech, "card": _card("Waiting for your approval", rows, "Open Scope2Cash › Pipeline to approve"),
             "data": {"actions": [a.model_dump() for a in acts]}}
@@ -248,7 +260,8 @@ def propose_reminder(client: str = "", invoice_number: str = "", sender: str = "
         total = sum(pipeline_stats.amount_due(store.get(a.invoice_id) or targets[0]) for a in all_q)
         who = name or join_names(sorted({(store.get(a.invoice_id).client_name if store.get(a.invoice_id) else "") or a.invoice_number for a in all_q}))
         n = len(all_q)
-        speech = (f"Done. I've queued {'a reminder' if n == 1 else f'{n} reminders'} for {who}, {money(total)} in total. "
+        speech = (f"Done. I've queued {'a reminder' if n == 1 else f'{n} reminders'} for {who}"
+                  + (f", {money(total)}. " if n == 1 else f", {money(total)} in total. ")
                   if queued else f"A reminder for {who} is already waiting for you. ")
         speech += "Nothing goes out until you approve it in Scope2Cash."
     else:

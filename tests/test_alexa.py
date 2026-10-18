@@ -72,7 +72,7 @@ def test_in_process_client_sees_same_tools(samples):
             return r.structured_content
     out = asyncio.run(go())
     assert out["data"]["overdue"] == 1800 + 450 + 1200
-    assert "already overdue" in out["speech"]
+    assert "$3,450 from earlier weeks is overdue" in out["speech"]
 
 
 # ---------------------------------------------------------------- skills
@@ -89,7 +89,7 @@ def test_who_owes_me_one_client(samples):
     from alexa.skills import who_owes_me
     out = who_owes_me("harbor yoga")
     assert out["data"]["clients"][0]["owed"] == 2400
-    assert out["speech"].startswith("Harbor Yoga owes $2,400, 17 days late.")
+    assert out["speech"].startswith("Harbor Yoga owes $2,400; $1,200 of it is 17 days late.")
 
 
 def test_propose_reminder_queues_but_never_sends(samples):

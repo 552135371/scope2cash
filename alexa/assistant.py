@@ -84,8 +84,7 @@ def rule_route(text: str, ctx: Dict[str, Any]) -> Tuple[Optional[Plan], str]:
         client = ctx.get("last_client")
     if _SEND.search(t):
         plan: Plan = [("pending_approvals", {})]
-        return plan, ("I can't send or approve anything by voice. For safety, you approve each reminder with a tap in "
-                      "Scope2Cash. ")
+        return plan, "I can't send or approve anything by voice. That always takes a tap from you. "
     if _REMIND.search(t):
         return [("propose_reminder", {"client": client} if client else {})], ""
     if _PENDING.search(t):
