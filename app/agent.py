@@ -7,8 +7,10 @@ deterministic heuristic (app/heuristics.py) used in mock mode and as a visible f
 """
 from __future__ import annotations
 
+import contextvars
 import json
 import math
+from concurrent.futures import ThreadPoolExecutor
 import re
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -202,6 +204,15 @@ QUOTE_TERMS = ["Each milestone is invoiced via PayPal when it starts and is due 
                "Source files and IP transfer to the client on final payment"]
 
 
+def _in_parallel(*calls):
+    """Run independent live model calls at the same time (v0.5: the proposal and the negotiation tips do not depend on
+    each other, so step 4 waits for the slower of the two instead of both). Each call runs in a copy of the request's
+    context so per-request settings (e.g. the offline switch) still apply; each call keeps its own fallback."""
+    with ThreadPoolExecutor(max_workers=len(calls)) as pool:
+        futures = [pool.submit(contextvars.copy_context().run, c) for c in calls]
+        return tuple(f.result() for f in futures)
+
+
 def build_quote(scope: Scope, pricing: PricingReference, hourly_rate: float | None, position: str,
                 currency: str | None = None) -> Tuple[Quote, List[TraceStep]]:
     s = config.get_settings()
@@ -217,16 +228,17 @@ def build_quote(scope: Scope, pricing: PricingReference, hourly_rate: float | No
               f"question, sign as {s.freelancer_name}). The only numbers with a currency you may write are the total and the hourly "
               "rate given, in the given currency (write its symbol or ISO code); never restate the client's budget or invent other prices.")
     payload = {"scope": scope.model_dump(exclude={"assumptions"}), "total": total, "rate": rate, "currency": currency}
-    r1 = llm.complete_json("main", system, json.dumps(payload), lambda: H.mock_cover(scope, total, rate, s.freelancer_name, currency),
-                           validate=lambda d: _need(d.get("cover_message")))
+    call1 = lambda: llm.complete_json("main", system, json.dumps(payload), lambda: H.mock_cover(scope, total, rate, s.freelancer_name, currency),
+                                      validate=lambda d: _need(d.get("cover_message")))
     system2 = ("You are a pricing negotiation coach for freelancers. Think through the client's budget, timeline and risks, "
                "then return JSON {\"negotiation_tips\": [exactly 3 short, specific, actionable tips]}. Prefer trading scope "
                "over discounting. Only use numbers present in the input.")
     deep_in = {"currency": currency, "total": total, "rate": rate, "client_budget": budget, "deadline": scope.deadline,
                "confidence": scope.confidence, "risks": scope.risks, "milestones": [(li.milestone, li.amount) for li in items],
                "market": pricing.model_dump(include={"currency", "hourly_low", "hourly_high", "low", "median", "high", "grounded"})}
-    r2 = llm.complete_json("deep", system2, json.dumps(deep_in), lambda: H.mock_tips(scope, total, rate, gap, cut, currency),
-                           validate=lambda d: _need(d.get("negotiation_tips")))
+    call2 = lambda: llm.complete_json("deep", system2, json.dumps(deep_in), lambda: H.mock_tips(scope, total, rate, gap, cut, currency),
+                                      validate=lambda d: _need(d.get("negotiation_tips")))
+    r1, r2 = _in_parallel(call1, call2) if llm.mode == "live" else (call1(), call2())
     tips = [str(t) for t in r2.data.get("negotiation_tips", [])][:4]
     quote = Quote(currency=currency, hourly_rate=rate, total=total, line_items=items, budget_note=budget_note,
                   terms=list(QUOTE_TERMS), fx_note=fx_note(pricing, currency),
