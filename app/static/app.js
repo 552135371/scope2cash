@@ -1,5 +1,8 @@
 const $ = (s) => document.querySelector(s);
-const state = { scope: null, pricing: null, quote: null, invoices: [], position: "market", rate: null };
+const state = { scope: null, pricing: null, quote: null, invoices: [], position: "market", rate: null, currency: "USD" };
+// Supported quote/invoice currencies + the dated reference rates used only for "≈" mixed-currency roll-ups (GET /api/fx).
+let FX = { default: "USD", supported: [{ code: "USD", symbol: "$", name: "US dollar" }], usd_per_unit: { USD: 1 }, date: "", source: "", note: "" };
+const fxReady = fetch("/api/fx").then((r) => r.json()).then((j) => { FX = j; state.currency = j.default || "USD"; }).catch(() => {});
 const SAMPLE = `Hi! I'm Sarah from Bloom Pilates Studio in Austin. We want an iOS app for our members.
 
 Members should be able to sign up, see the weekly class schedule, book or cancel a class, and get reminder notifications an hour before class. We'd also like to sell 10-class packs and a monthly membership inside the app (subscription).
@@ -8,7 +11,15 @@ On our side we need a simple admin dashboard to manage classes, instructors and 
 
 We'd love to launch before our spring promo in March. Budget is flexible but we're a small studio. Can you send a proposal?`;
 
-const money = (n, c = "USD") => new Intl.NumberFormat("en-US", { style: "currency", currency: c, maximumFractionDigits: 0 }).format(n);
+const money = (n, c = "USD") => new Intl.NumberFormat("en-US", { style: "currency", currency: c || "USD", maximumFractionDigits: 0 }).format(n);
+const toUsd = (n, c) => n * ((FX.usd_per_unit || {})[c || "USD"] ?? NaN);
+// Sum amounts per currency; one currency -> exact figure, several -> "≈ $X" (USD at FX.date) plus the exact breakdown.
+function moneyMulti(byCur) {
+  const ent = Object.entries(byCur).filter(([, v]) => v);
+  if (ent.length <= 1) { const [c, v] = ent[0] || ["USD", 0]; return { text: money(v, c), approx: false, parts: money(v, c) }; }
+  const usd = ent.reduce((a, [c, v]) => a + toUsd(v, c), 0);
+  return { text: isNaN(usd) ? "mixed" : "≈ " + money(usd, "USD"), approx: true, usd, parts: ent.map(([c, v]) => money(v, c)).join(" + ") };
+}
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 async function api(path, body, method) {
@@ -38,11 +49,15 @@ function addTrace(steps) {
   });
   ol.scrollTop = ol.scrollHeight;
 }
-async function busy(btn, fn) {
-  const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>Working…`;
-  // Live model steps take 10-40 s (and the first request after the free host wakes up can take longer): say so.
-  const slow = setTimeout(() => { if (btn.disabled) btn.innerHTML = `<span class="spinner"></span>Working…<span class="slowhint">live AI step, usually 10–40 s</span>`; }, 6000);
-  try { await fn(); } finally { clearTimeout(slow); btn.disabled = false; btn.innerHTML = label; }
+async function busy(btn, fn, hint = "live AI step, usually 10–40 s") {
+  const label = btn.innerHTML, t0 = Date.now(); btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>Working…`;
+  // Live model steps take 10-40 s (and the first request after the free host wakes up can take longer). v0.5: show a real
+  // elapsed-seconds counter plus what the step is doing, instead of a frozen spinner. No fake progress percentages.
+  const tick = setInterval(() => {
+    const sec = Math.round((Date.now() - t0) / 1000);
+    if (btn.disabled && sec >= 3) btn.innerHTML = `<span class="spinner"></span>Working… ${sec} s${sec >= 6 && hint ? `<span class="slowhint">${esc(hint)}</span>` : ""}`;
+  }, 1000);
+  try { await fn(); } finally { clearInterval(tick); btn.disabled = false; btn.innerHTML = label; }
 }
 function show(id) { const el = $(id); el.classList.remove("hidden"); setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }
 
@@ -81,7 +96,7 @@ async function healthWithWakeup() {
 $("#instant").onclick = (e) => busy(e.currentTarget, async () => {
   const r = await api("/api/demo/sample-project", {});
   $("#brief").value = r.brief; $("#trace").innerHTML = ""; $("#totals").classList.add("hidden"); $("#s5").classList.add("hidden");
-  state.scope = r.scope; state.pricing = r.pricing; state.quote = r.quote; state.position = "market"; state.rate = null;
+  state.scope = r.scope; state.pricing = r.pricing; state.quote = r.quote; state.position = "market"; state.rate = null; state.currency = r.quote.currency;
   addTrace(r.trace); renderScope(); renderPricing(); renderQuote();
   ["#s2", "#s3"].forEach((s) => $(s).classList.remove("hidden")); setStep(4); show("#s4");
   toast("Sample project loaded (recorded DeepSeek run). Next: Create PayPal invoice drafts");
@@ -94,15 +109,17 @@ $("#go-scope").onclick = (e) => busy(e.currentTarget, async () => {
   if (requirement.length < 20) return toast("Paste a longer brief (20+ characters).");
   $("#trace").innerHTML = ""; ["#s3", "#s4", "#s5"].forEach((s) => $(s).classList.add("hidden")); $("#totals").classList.add("hidden");
   const r = await api("/api/scope", { requirement });
-  state.scope = r.scope; addTrace(r.trace); renderScope(); setStep(2); show("#s2");
-});
+  state.scope = r.scope; state.rate = null; await fxReady;
+  state.currency = r.scope.budget_currency || FX.default || "USD";  // quote in the currency the client wrote their budget in
+  addTrace(r.trace); renderScope(); setStep(2); show("#s2");
+}, "DeepSeek is reading the brief: milestones, risks, open questions (usually 15–30 s)");
 
 // ---------- step 2
 function renderScope() {
   const s = state.scope;
   const total = s.milestones.reduce((a, m) => a + Number(m.est_hours), 0);
   $("#s2").innerHTML = `
-    <div class="card-head"><h2>2 · Scope: ${esc(s.project_title)}</h2><div class="chips"><span class="chip">${esc(s.project_type)}</span><span class="chip">${esc(s.client_name)}</span><span class="chip" id="hrs-total">${total} h</span>${s.client_budget ? `<span class="chip">budget ${money(s.client_budget)}</span>` : ""}${s.deadline ? `<span class="chip">⏱ ${esc(s.deadline)}</span>` : ""}${s.language && s.language !== "en" ? `<span class="chip">brief: ${esc(s.language)}</span>` : ""}</div></div>
+    <div class="card-head"><h2>2 · Scope: ${esc(s.project_title)}</h2><div class="chips"><span class="chip">${esc(s.project_type)}</span><span class="chip">${esc(s.client_name)}</span><span class="chip" id="hrs-total">${total} h</span>${s.client_budget ? `<span class="chip">budget ${s.budget_currency ? money(s.client_budget, s.budget_currency) : Number(s.client_budget).toLocaleString("en-US") + " (currency not stated)"}</span>` : ""}${s.deadline ? `<span class="chip">⏱ ${esc(s.deadline)}</span>` : ""}${s.language && s.language !== "en" ? `<span class="chip">brief: ${esc(s.language)}</span>` : ""}</div></div>
     <div class="summary">${esc(s.summary)}</div>
     <div class="row between" style="margin-top:8px"><span class="conf ${s.confidence < 0.5 ? "low" : ""}">Brief completeness <span class="bar"><i style="width:${Math.round(s.confidence * 100)}%"></i></span> ${Math.round(s.confidence * 100)}%</span></div>
     ${s.confidence < 0.5 ? `<div class="callout warn">This brief is thin. Send the client the questions below before committing to a fixed price, or quote milestone 1 as paid discovery.</div>` : ""}
@@ -124,7 +141,7 @@ function renderScope() {
   $("#go-price").onclick = (e) => busy(e.currentTarget, async () => {
     const r = await api("/api/pricing", { scope: state.scope });
     state.pricing = r.pricing; addTrace(r.trace); await makeQuote(); renderPricing(); setStep(3); show("#s3");
-  });
+  }, "web search for market rates, then the proposal and negotiation tips in parallel (usually 15–40 s)");
 }
 
 // ---------- step 3
@@ -133,19 +150,19 @@ function renderPricing() {
   const span = Math.max(p.high - p.low, 1);
   const pos = (v) => Math.min(100, Math.max(0, ((v - p.low) / span) * 100));
   $("#s3").innerHTML = `
-    <div class="card-head"><h2>3 · Market price reference</h2><div class="chips"><span class="ground ${p.grounded ? "ok" : "no"}">${p.grounded ? "✓ grounded in sources" : "✗ unverified placeholder"}</span><span class="chip">${money(p.hourly_low)}–${money(p.hourly_high)}/h</span></div></div>
+    <div class="card-head"><h2>3 · Market price reference</h2><div class="chips"><span class="ground ${p.grounded ? "ok" : "no"}">${p.grounded ? "✓ grounded in sources" : "✗ unverified placeholder"}</span><span class="chip">${money(p.hourly_low, p.currency)}–${money(p.hourly_high, p.currency)}/h</span></div></div>
     <p class="muted">${esc(p.rationale)}</p>
     ${p.evidence?.length ? `<div class="evidence"><span class="muted" style="background:none">Figures found in sources:</span>${p.evidence.map((e) => `<span>${esc(e)}</span>`).join("")}</div>` : ""}
     ${p.queries?.length ? `<div class="queries">Tavily queries: ${p.queries.map((q) => `<code>${esc(q)}</code>`).join(" ")}</div>` : ""}
-    <div class="range"><div class="mk" style="left:${pos(p.median)}%">Market ${money(p.median)}</div><div class="mk you" style="left:${pos(q.total)}%;top:24px">You ${money(q.total)}</div></div>
-    <div class="range-labels" style="margin-top:34px"><span>Low ${money(p.low)}</span><span>High ${money(p.high)}</span></div>
+    <div class="range"><div class="mk" style="left:${pos(p.median)}%">Market ${money(p.median, p.currency)}</div><div class="mk you" style="left:${pos(q.currency === p.currency ? q.total : toUsd(q.total, q.currency) / ((FX.usd_per_unit || {})[p.currency] || 1))}%;top:24px">You ${money(q.total, q.currency)}${q.currency !== p.currency ? ` (≈ ${money(toUsd(q.total, q.currency), "USD")})` : ""}</div></div>
+    <div class="range-labels" style="margin-top:34px"><span>Low ${money(p.low, p.currency)}</span><span>High ${money(p.high, p.currency)}</span></div>
     <div class="sources">${p.sources.map((s) => `<div class="src"><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a><div class="muted">${esc(s.snippet)}</div></div>`).join("")}</div>
     ${p.mock ? `<div class="mocknote">Sample sources (mock mode) — add TAVILY_API_KEY for live market research.</div>` : ""}
     <div class="row end"><button class="primary" id="go-quote">Build the quote →</button></div>`;
   $("#go-quote").onclick = () => { renderQuote(); setStep(4); show("#s4"); };
 }
 async function makeQuote() {
-  const r = await api("/api/quote", { scope: state.scope, pricing: state.pricing, hourly_rate: state.rate, position: state.position });
+  const r = await api("/api/quote", { scope: state.scope, pricing: state.pricing, hourly_rate: state.rate, position: state.position, currency: state.currency });
   state.quote = r.quote; addTrace(r.trace);
 }
 
@@ -155,11 +172,13 @@ function renderQuote() {
   $("#s4").innerHTML = `
     <div class="card-head"><h2>4 · Quote</h2>
       <div class="row" style="margin:0"><div class="seg" id="seg">${["value", "market", "premium"].map((p) => `<button data-p="${p}" class="${state.position === p ? "on" : ""}">${p[0].toUpperCase() + p.slice(1)}</button>`).join("")}</div>
-      <input id="rate" type="number" style="width:110px" placeholder="$/h" value="${q.hourly_rate}"></div></div>
+      <select id="currency" aria-label="Quote and invoice currency" title="Currency for this quote and its PayPal invoices">${(FX.supported || []).map((c) => `<option value="${c.code}" ${c.code === q.currency ? "selected" : ""}>${c.code} ${esc(c.symbol)}</option>`).join("")}</select>
+      <input id="rate" type="number" style="width:110px" placeholder="${esc(q.currency)}/h" title="Hourly rate in ${esc(q.currency)}" value="${q.hourly_rate}"></div></div>
     <table><thead><tr><th>#</th><th>Milestone</th><th class="num">Hours</th><th>Due</th><th class="num">%</th><th class="num">Amount</th></tr></thead>
       <tbody>${q.line_items.map((li, i) => `<tr><td>${i + 1}</td><td>${esc(li.milestone)}</td><td class="num">${li.hours}</td><td>${li.due_date}</td><td class="num">${li.percent}%</td><td class="num">${money(li.amount, q.currency)}</td></tr>`).join("")}</tbody>
-      <tfoot><tr><td></td><td>Total @ ${money(q.hourly_rate)}/h</td><td class="num">${q.line_items.reduce((a, l) => a + l.hours, 0)}</td><td></td><td></td><td class="num">${money(q.total, q.currency)}</td></tr></tfoot></table>
+      <tfoot><tr><td></td><td>Total @ ${money(q.hourly_rate, q.currency)}/h</td><td class="num">${q.line_items.reduce((a, l) => a + l.hours, 0)}</td><td></td><td></td><td class="num">${money(q.total, q.currency)}</td></tr></tfoot></table>
     ${q.budget_note ? `<div class="callout ${q.budget_note.includes("above") ? "warn" : ""}">${esc(q.budget_note)}</div>` : ""}
+    ${q.fx_note ? `<p class="muted small fxnote">💱 ${esc(q.fx_note)}</p>` : ""}
     <div class="grid2">
       <div><h5 class="muted" style="margin:0">PROPOSAL MESSAGE</h5><div class="letter">${esc(q.cover_message)}</div></div>
       <div><h5 class="muted" style="margin:0">NEGOTIATION COACH <span class="chip">deep model</span></h5><ul class="tips">${q.negotiation_tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>
@@ -172,6 +191,12 @@ function renderQuote() {
     state.position = b.dataset.p; state.rate = null; await makeQuote(); renderPricing(); renderQuote();
   });
   $("#rate").onchange = async (e) => { state.rate = Number(e.target.value) || null; await makeQuote(); renderPricing(); renderQuote(); };
+  $("#currency").onchange = async (e) => {  // re-quote in the new currency (the rate restarts from the market range)
+    const sel = e.target; sel.disabled = true; toast(`Re-quoting in ${sel.value}…`);
+    try { state.currency = sel.value; state.rate = null; await makeQuote(); renderPricing(); renderQuote(); }
+    finally { sel.disabled = false; }
+    toast(`Quote in ${state.currency}: the PayPal invoice drafts will be in ${state.currency} too`);
+  };
   $("#copy-quote").onclick = () => { navigator.clipboard?.writeText(q.cover_message); toast("Proposal copied"); };
   $("#go-inv").onclick = (e) => busy(e.currentTarget, async () => {
     const client_email = $("#email").value.trim();
@@ -195,7 +220,7 @@ function renderInvoices() {
       <div class="stat"><small>Drafts to approve</small><b>${money(draft, cur)}</b></div></div>
     <table><thead><tr><th>Invoice</th><th>Milestone</th><th>Due</th><th class="num">Amount</th><th>Status</th><th class="num">Actions</th></tr></thead><tbody>
     ${inv.map((i) => `<tr><td><b>${esc(i.number)}</b><br><span class="muted small">${esc(i.id)}</span></td><td>${esc(i.milestone)}</td><td>${i.due_date}</td>
-      <td class="num">${money(i.amount, cur)}</td><td><span class="pill ${i.status}">${i.status}</span>${i.status === "OVERDUE" && i.days_overdue ? `<br><span class="muted small">${i.days_overdue} days late (simulated)</span>` : ""}</td><td><div class="acts">
+      <td class="num">${money(i.amount, i.currency)}</td><td><span class="pill ${i.status}">${i.status}</span>${i.status === "OVERDUE" && i.days_overdue ? `<br><span class="muted small">${i.days_overdue} days late (simulated)</span>` : ""}</td><td><div class="acts">
       ${i.status === "DRAFT" ? `<button class="pp tiny" data-a="send" data-id="${i.id}">Approve & send</button>` : ""}
       ${["SENT", "OVERDUE", "PARTIALLY_PAID"].includes(i.status) ? `<button class="ghost tiny" data-a="remind" data-id="${i.id}">Draft reminder</button>` : ""}
       ${!demo && i.payer_link && i.status !== "DRAFT" ? `<a class="ghost tiny" style="text-decoration:none;color:var(--pp)" href="${esc(i.payer_link)}" target="_blank" rel="noopener">Payer view ↗</a>` : ""}
@@ -205,7 +230,7 @@ function renderInvoices() {
       ${demo && i.status === "SENT" ? `<button class="ghost tiny" data-a="overdue" data-id="${i.id}">⏩ overdue</button><button class="ghost tiny" data-a="pay" data-id="${i.id}">⏩ paid</button>` : ""}
       ${demo && i.status === "OVERDUE" ? `<button class="ghost tiny" data-a="pay" data-id="${i.id}">⏩ paid</button>` : ""}
       ${["CANCELLED", "REFUNDED"].includes(i.status) ? "" : i.payout_batch_id ? `<span class="chip payout">💸 ${esc(i.split_label)} · ${esc(i.payout_status || "sent")}</span>`
-        : `<button class="ghost tiny" data-a="split" data-id="${i.id}">${i.split_email ? `👥 ${esc(i.split_label)} · ${money(i.split_amount, cur)}` : "👥 Split"}</button>`}
+        : `<button class="ghost tiny" data-a="split" data-id="${i.id}">${i.split_email ? `👥 ${esc(i.split_label)} · ${money(i.split_amount, i.currency)}` : "👥 Split"}</button>`}
       </div></td></tr>`).join("")}</tbody></table>
     <p class="muted small">${demo ? "Demo mode: ⏩ buttons simulate client actions. With PayPal sandbox keys, statuses sync from PayPal." : "Statuses sync live from PayPal Invoicing. Checkout links use PayPal Orders v2; ⏩ sandbox card pays with a PayPal sandbox test card (no real money)."}</p>
     <div class="row end"><button class="ghost" id="refresh">Refresh statuses</button></div>`;
@@ -239,7 +264,7 @@ async function act(a, id) {
       <p class="muted small">Working with a designer or developer on <b>${esc(inv.milestone)}</b> (${money(inv.amount, inv.currency)})? When the client pays this milestone, Scope2Cash queues a PayPal payout of their share. <b>Nothing is paid until you click Approve.</b></p>
       <div class="grid2" style="margin-top:8px"><label class="small">Who<input id="sp-label" value="${esc(inv.split_label || "Designer")}" maxlength="60"></label>
         <label class="small">Their PayPal email<input id="sp-email" value="${esc(inv.split_email || "designer@collab.example.com")}"></label></div>
-      <div class="grid2"><label class="small">Share (USD)<input id="sp-amt" type="number" min="0" step="0.01" value="${inv.split_amount || (inv.amount * 0.3).toFixed(2)}"></label>
+      <div class="grid2"><label class="small">Share (${esc(inv.currency)})<input id="sp-amt" type="number" min="0" step="0.01" value="${inv.split_amount || (inv.amount * 0.3).toFixed(2)}"></label>
         <label class="small">or % of milestone<input id="sp-pct" type="number" min="0" max="100" step="1" value="${pct}"></label></div>
       ${state.health?.public_demo ? `<p class="muted small">Public demo: sandbox recipients only (*example.com). No real money.</p>` : ""}
       <div class="row end">${inv.split_email ? `<button class="ghost" id="sp-clear">Remove split</button>` : ""}<button class="ghost" id="m-close">Close</button><button class="pp" id="sp-save">Save split</button></div>`;

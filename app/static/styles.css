@@ -151,3 +151,10 @@ tfoot td{font-weight:800;font-size:15px;border-bottom:0}
 .grid-wrap{height:548px}
 .nudge.payout .nudge-txt b{color:var(--ok)}.chip.payout{background:#e6f6ec;color:#17733f;font-weight:600;white-space:nowrap}
 #modal-card label.small{display:flex;flex-direction:column;gap:4px;color:var(--muted)}
+
+/* multi-currency (v0.5): exact per-currency breakdown under "≈" totals, currency tag on scoreboard rows */
+.kpi em.curparts { display: block; font-style: normal; font-size: 11px; color: #5b6478; margin-top: 1px; }
+.fxnote { margin: 6px 0 2px; }
+.fxnote a { color: inherit; }
+.tag.cur { background: #eef4ff; color: #0b4fa8; }
+#currency { width: auto; padding: 6px 8px; }
