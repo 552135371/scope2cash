@@ -1,0 +1,1 @@
+mcp==2.3.0  # Alexa+ add-on: official MCP Python SDK (Streamable HTTP server, protocol 2025-11-25 handshake)

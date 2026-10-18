@@ -1,5 +1,7 @@
 # Scope2Cash
 
+> **Alexa+ add-on (branch `alexa-plus`):** ask "Alexa, who still owes me money?" — a self-hosted MCP server (Streamable HTTP, protocol 2025-11-25) plus a simulated Alexa+ voice experience. See [`alexa/README.md`](alexa/README.md).
+
 **From a messy client brief to a paid invoice: an AI agent that scopes, prices with cited market data, and bills by milestone through PayPal, with a human approving every outbound step.**
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/552135371/scope2cash)

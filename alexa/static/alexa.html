@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scope2Cash · voice (Alexa+ simulation)</title>
+<style>
+  :root { --bg:#0b1220; --panel:#121b2e; --ink:#e8eefc; --muted:#8fa0c2; --accent:#22c3e6; --warn:#f5b041; --ok:#4cd17b; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:14px 22px; border-bottom:1px solid #1d2840; }
+  header b { font-size:18px; } header a { color:var(--accent); text-decoration:none; font-size:14px; }
+  .badge { font-size:12px; color:var(--muted); border:1px solid #2a3756; border-radius:12px; padding:2px 8px; margin-left:8px; }
+  main { display:grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); gap:18px; padding:18px 22px; max-width:1200px; margin:auto; }
+  @media (max-width:860px){ main { grid-template-columns:1fr; } }
+  .device { background:#05080f; border:10px solid #1a2233; border-radius:26px; min-height:400px; padding:22px; position:relative; overflow:hidden; }
+  .ring { position:absolute; left:0; right:0; bottom:0; height:6px; background:transparent; transition:background .2s; }
+  .ring.listening { background:linear-gradient(90deg,#1aa3ff,#22e6d0,#1aa3ff); animation:pulse 1s infinite alternate; }
+  .ring.speaking { background:linear-gradient(90deg,#22e6d0,#1aa3ff); }
+  @keyframes pulse { from{opacity:.5} to{opacity:1} }
+  .said { color:var(--muted); font-size:15px; min-height:22px; }
+  .speech { font-size:24px; line-height:1.35; margin:10px 0 18px; min-height:64px; }
+  .card { background:var(--panel); border-radius:14px; padding:14px 16px; margin-top:10px; }
+  .card h3 { margin:0 0 8px; font-size:15px; color:var(--accent); font-weight:600; }
+  .row { display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-top:1px solid #1d2840; font-size:15px; }
+  .row:first-of-type { border-top:none; } .row .v { font-weight:600; white-space:nowrap; }
+  .row .n { color:var(--muted); font-size:13px; } .row.wait .v { color:var(--warn); }
+  .foot { color:var(--muted); font-size:13px; margin-top:8px; }
+  .controls { display:flex; gap:10px; margin-top:16px; }
+  .controls input { flex:1; background:var(--panel); border:1px solid #2a3756; color:var(--ink); border-radius:12px; padding:12px 14px; font-size:16px; }
+  button { background:var(--accent); color:#04121a; border:0; border-radius:12px; padding:12px 16px; font-weight:700; font-size:15px; cursor:pointer; }
+  button.mic { width:52px; font-size:20px; } button.mic.on { background:#ff5a6e; color:white; }
+  button.ghost { background:transparent; border:1px solid #2a3756; color:var(--ink); font-weight:500; padding:7px 11px; font-size:14px; border-radius:16px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  aside .panel { background:var(--panel); border-radius:14px; padding:14px 16px; margin-bottom:14px; }
+  aside h4 { margin:0 0 8px; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .log { font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; color:#b9c7e6; max-height:260px; overflow:auto; white-space:pre-wrap; }
+  .turn { margin:6px 0; font-size:14px; } .turn .you { color:var(--muted); }
+  .safe { color:var(--ok); font-size:13px; }
+  .hint { color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <div><b>Scope2Cash</b><span class="badge">voice · Alexa+ simulation</span><span class="badge" id="mcpBadge">MCP</span></div>
+  <a href="/" target="_blank">Open dashboard (approve reminders) ↗</a>
+</header>
+<main>
+  <section>
+    <div class="device">
+      <div class="said" id="said">Tap the mic and ask: "Who still owes me money?"</div>
+      <div class="speech" id="speech">Hi! I keep an eye on who owes you money.</div>
+      <div id="cards"></div>
+      <div class="ring" id="ring"></div>
+    </div>
+    <div class="controls">
+      <button class="mic" id="mic" title="Push to talk">🎤</button>
+      <input id="text" placeholder="…or type what you'd say to Alexa" autocomplete="off">
+      <button id="go">Ask</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <p class="hint" id="micHint"></p>
+  </section>
+  <aside>
+    <div class="panel"><h4>Conversation (remembered across reloads)</h4><div id="turns"></div></div>
+    <div class="panel"><h4>MCP tool calls</h4><div class="log" id="log">—</div></div>
+    <div class="panel"><h4>Safety</h4>
+      <div class="safe">✓ Read-only answers come straight from your pipeline.</div>
+      <div class="safe">✓ "Remind them" only queues a proposal. Nothing is sent until you tap Approve in the dashboard.</div>
+      <div class="safe">✓ Saying "send it" or "approve" by voice is refused on purpose.</div>
+    </div>
+  </aside>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const SID_KEY = "s2c_voice_session";
+let sid = localStorage.getItem(SID_KEY) || "";
+const CHIPS = ["Who still owes me money?", "What's coming in this week?", "Yes", "How much does Harbor Yoga owe?",
+               "Remind them", "What's waiting for my approval?", "Send it now"];
+CHIPS.forEach((c) => { const b = document.createElement("button"); b.className = "ghost"; b.textContent = c;
+  b.onclick = () => ask(c); $("chips").appendChild(b); });
+
+fetch("/api/alexa/info").then(r => r.json()).then(j => {
+  $("mcpBadge").textContent = `MCP ${j.min_protocol_version}+ · ${j.tools.length} tools · /mcp`;
+}).catch(() => {});
+
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function renderCards(cards) {
+  $("cards").innerHTML = (cards || []).map(c => `
+    <div class="card"><h3>${esc(c.title)}</h3>
+      ${(c.rows || []).map(r => `<div class="row ${r.value === "waiting for approval" ? "wait" : ""}">
+        <div>${esc(r.label)}${r.note ? `<div class="n">${esc(r.note)}</div>` : ""}</div><div class="v">${esc(r.value)}</div></div>`).join("")}
+      ${c.footer ? `<div class="foot">${esc(c.footer)}</div>` : ""}</div>`).join("");
+}
+
+function speak(text) {
+  if (!("speechSynthesis" in window) || !text) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-US"; u.rate = 1.03;
+  const v = speechSynthesis.getVoices().find(v => /en-US/.test(v.lang) && /female|samantha|aria|jenny|google us/i.test(v.name));
+  if (v) u.voice = v;
+  u.onstart = () => $("ring").className = "ring speaking";
+  u.onend = () => $("ring").className = "ring";
+  speechSynthesis.speak(u);
+}
+
+async function ask(text) {
+  text = (text || "").replace(/^\s*(hey\s+)?alexa[,\s]+/i, "").trim();
+  if (!text) return;
+  $("said").textContent = `“${text}”`;
+  $("speech").textContent = "…";
+  $("text").value = "";
+  try {
+    const r = await fetch("/api/alexa/ask", { method: "POST", headers: {"Content-Type": "application/json"},
+                                              body: JSON.stringify({ text, session_id: sid }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || r.status);
+    sid = j.session_id; localStorage.setItem(SID_KEY, sid);
+    $("speech").textContent = j.speech;
+    renderCards(j.cards);
+    $("log").textContent = (j.calls.length ? j.calls.map(c => `tools/call ${c.tool} ${JSON.stringify(c.args)}  ${c.ms} ms${c.error ? "  ERROR" : ""}`).join("\n")
+                                           : "(no tool needed)") + `\nrouter: ${j.router} · turn ${j.ms} ms` +
+                           (j.memory.last_client ? `\nmemory: last client = ${j.memory.last_client}` : "") +
+                           (j.memory.offer ? `\noffer pending: reminder for ${j.memory.offer}` : "");
+    const t = document.createElement("div"); t.className = "turn";
+    t.innerHTML = `<div class="you">You: ${esc(text)}</div><div>Alexa: ${esc(j.speech)}</div>`;
+    $("turns").prepend(t);
+    speak(j.speech);
+  } catch (e) { $("speech").textContent = "Sorry, I couldn't reach Scope2Cash (" + e.message + "). The free server may be waking up; try again in a few seconds."; }
+}
+
+$("go").onclick = () => ask($("text").value);
+$("text").addEventListener("keydown", e => { if (e.key === "Enter") ask($("text").value); });
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) { $("micHint").textContent = "Voice input needs Chrome or Edge; typing works everywhere."; $("mic").disabled = true; }
+else {
+  const rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.maxAlternatives = 1;
+  let on = false;
+  rec.onresult = (e) => { const r = e.results[e.results.length - 1]; $("said").textContent = `“${r[0].transcript}”`;
+                          if (r.isFinal) ask(r[0].transcript); };
+  rec.onend = () => { on = false; $("mic").classList.remove("on"); $("ring").className = "ring"; };
+  rec.onerror = (e) => { $("micHint").textContent = "Mic: " + e.error; };
+  $("mic").onclick = () => { if (on) { rec.stop(); return; } speechSynthesis.cancel(); on = true; $("mic").classList.add("on");
+                             $("ring").className = "ring listening"; rec.start(); };
+}
+</script>
+</body>
+</html>
