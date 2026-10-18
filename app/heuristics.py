@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from .fx import fmt as _fmt
 from .models import Invoice, Scope
 
 # (pattern, component name, deliverables, hours, group) -- group "adv" goes into its own milestone
@@ -131,6 +132,25 @@ def _parse_amount(raw: str, k: str) -> Optional[float]:
 
 
 _AMT = r"(?:usd|us\$|\$|€|eur|£)?\s?(\d[\d,.]*)\s?(k|mil)?"
+
+
+_CUR_HINTS = [("EUR", r"€|\beur\b|\beuros?\b"), ("GBP", r"£|\bgbp\b|\bpounds?(?: sterling)?\b"),
+              ("CAD", r"\bca\$|\bc\$|\bcad\b|canadian dollars?"), ("AUD", r"\ba\$|\baud\b|australian dollars?"),
+              ("SGD", r"\bs\$|\bsgd\b|singapore dollars?"), ("USD", r"\bus\$|\busd\b|\$")]
+
+
+def extract_budget_currency(text: str) -> Optional[str]:
+    """The currency the client's budget is written in, only when a budget is actually stated ('budget €8k' -> EUR).
+    Looked for in the sentence that states the budget; a bare '$' counts as USD. None when unclear."""
+    if extract_budget(text) is None:
+        return None
+    t = text.replace("\u00a0", " ")
+    m = re.search(r"[^.!?\n]*(?:budget|presupuesto|or[cç]amento|max|tops|for (?:the|this) (?:whole|project|job))[^.!?\n]*", t, re.I)
+    seg = m.group(0) if m else t
+    for code, pat in _CUR_HINTS:
+        if re.search(pat, seg, re.I):
+            return code
+    return None
 
 
 def extract_budget(text: str) -> Optional[float]:
@@ -409,7 +429,7 @@ def _lc(x: str) -> str:
     return x if (len(w) > 1 and w[1].isupper()) or w[:1].islower() else x[:1].lower() + x[1:]
 
 
-def mock_cover(scope: Scope, total: float, rate: float, freelancer: str) -> Dict[str, Any]:
+def mock_cover(scope: Scope, total: float, rate: float, freelancer: str, currency: str = "USD") -> Dict[str, Any]:
     first = scope.milestones[0]
     hours = sum(m.est_hours for m in scope.milestones)
     who = scope.contact_name or (scope.client_name if scope.client_name != "Client" else "")
@@ -421,15 +441,16 @@ def mock_cover(scope: Scope, total: float, rate: float, freelancer: str) -> Dict
     q = f"\n\nOne question before we start: {scope.open_questions[0][0].lower() + scope.open_questions[0][1:]}" if scope.open_questions else ""
     return {"cover_message": (
         f"{hello}\n\nThanks for the brief. I've scoped \"{scope.project_title}\" as {len(scope.milestones)} milestones, starting with "
-        f"{_lc(first.title)} ({', '.join(_lc(d) for d in first.deliverables[:2])}). The total is ${total:,.0f} for about {hours:.0f} hours at "
-        f"${rate:.0f}/h.{deadline}\n\nEach milestone gets its own PayPal invoice, so you only pay as work is delivered and approved."
+        f"{_lc(first.title)} ({', '.join(_lc(d) for d in first.deliverables[:2])}). The total is {_fmt(total, currency)} for about {hours:.0f} hours at "
+        f"{_fmt(rate, currency)}/h.{deadline}\n\nEach milestone gets its own PayPal invoice, so you only pay as work is delivered and approved."
         f"{q}\n\nBest,\n{freelancer}")}
 
 
-def mock_tips(scope: Scope, total: float, rate: float, budget_gap: Optional[float], cut: Optional[Tuple[str, float]]) -> Dict[str, Any]:
+def mock_tips(scope: Scope, total: float, rate: float, budget_gap: Optional[float], cut: Optional[Tuple[str, float]],
+              currency: str = "USD") -> Dict[str, Any]:
     tips: List[str] = []
     if budget_gap is not None and budget_gap > 0 and cut:
-        tips.append(f"The quote is ${budget_gap:,.0f} over their stated budget: offer a version without \"{cut[0]}\" (${total - cut[1]:,.0f}) instead of cutting your rate.")
+        tips.append(f"The quote is {_fmt(budget_gap, currency)} over their stated budget: offer a version without \"{cut[0]}\" ({_fmt(total - cut[1], currency)}) instead of cutting your rate.")
     elif budget_gap is not None and budget_gap <= 0:
         tips.append("You're within their stated budget, so don't open with a discount; lead with the plan and timeline.")
     if scope.confidence < 0.5:
@@ -448,7 +469,7 @@ def mock_reminder(inv: Invoice, days_overdue: int, freelancer: str) -> Dict[str,
     tone = "friendly" if days_overdue <= 3 else ("firm" if days_overdue <= 14 else "final")
     opener = {"friendly": "Just a quick nudge", "firm": "Following up", "final": "A final reminder"}[tone]
     return {"subject": f"{opener}: invoice {inv.number} for \"{inv.milestone}\"", "tone": tone,
-            "body": (f"Hi,\n\n{opener} on invoice {inv.number} (${inv.amount:,.2f}) for the \"{inv.milestone}\" milestone, "
+            "body": (f"Hi,\n\n{opener} on invoice {inv.number} ({_fmt(inv.amount, inv.currency, 2)}) for the \"{inv.milestone}\" milestone, "
                      f"which was due on {inv.due_date}" + (f" ({days_overdue} days ago)" if days_overdue > 0 else "") + ".\n\n"
                      f"You can pay securely via PayPal here: {inv.payer_link or '[PayPal link]'}\n\n"
                      + ("If anything about the deliverable needs adjusting, just reply and I'll sort it out right away.\n\n" if tone != "final" else

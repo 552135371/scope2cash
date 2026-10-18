@@ -75,6 +75,7 @@ class Scope(BaseModel):
     deadline: Optional[str] = None
     language: str = "en"
     contact_name: Optional[str] = None
+    budget_currency: Optional[str] = None  # currency the client's budget was stated in (€/£/...), detected from the brief
 
     @field_validator("project_type", mode="before")
     @classmethod
@@ -94,6 +95,13 @@ class Scope(BaseModel):
     def _c(cls, v):
         x = _num(v, 0.7)
         return max(0.0, min(x / 100 if x > 1 else x, 1.0))
+
+    @field_validator("budget_currency", mode="before")
+    @classmethod
+    def _bc(cls, v):
+        from .fx import SUPPORTED
+        v = str(v or "").strip().upper()
+        return v if v in SUPPORTED else None
 
     @field_validator("client_budget", mode="before")
     @classmethod
@@ -153,8 +161,13 @@ class LineItem(BaseModel):
     deliverables: List[str] = []
 
 
+def _currency(v):
+    from .fx import normalize
+    return normalize(v)
+
+
 class Quote(BaseModel):
-    currency: str = "USD"
+    currency: str = "USD"  # one of app.fx.SUPPORTED; every invoice drafted from this quote uses it
     hourly_rate: float
     total: float
     line_items: List[LineItem]
@@ -162,6 +175,12 @@ class Quote(BaseModel):
     cover_message: str
     negotiation_tips: List[str] = []
     budget_note: str = ""
+    fx_note: str = ""  # set when the USD market range was converted into the quote currency (rate + source + date)
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def _cur(cls, v):
+        return _currency(v)
 
 
 class QuoteRequest(BaseModel):
@@ -169,6 +188,12 @@ class QuoteRequest(BaseModel):
     pricing: PricingReference
     hourly_rate: Optional[float] = Field(default=None, gt=0, le=1000)
     position: Literal["value", "market", "premium"] = "market"
+    currency: Optional[str] = None  # quote/invoice currency; default APP_CURRENCY (USD). hourly_rate is in this currency.
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def _cur(cls, v):
+        return None if v in (None, "") else _currency(v)
 
 
 class QuoteResponse(BaseModel):
