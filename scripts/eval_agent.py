@@ -20,6 +20,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--mode", choices=["mock", "live"], default="mock")
 ap.add_argument("--out", default=str(ROOT / "eval" / "results_agent.md"))
 ap.add_argument("--min-pass-rate", type=float, default=0.0)
+ap.add_argument("--only", default="", help="comma-separated case ids (e.g. to spend live tokens on new cases only)")
 args = ap.parse_args()
 
 os.environ["SCOPE2CASH_DB"] = str(Path(tempfile.mkdtemp()) / "agent_eval.db")
@@ -35,6 +36,8 @@ s = config.reload_settings()
 if args.mode == "live" and not s.llm_live:
     sys.exit("live mode needs an LLM key (DEEPSEEK_API_KEY, NEBIUS_API_KEY or NVIDIA_API_KEY)")
 cases = json.loads((ROOT / "eval" / "agent_cases.json").read_text())["cases"]
+if args.only:
+    cases = [c for c in cases if c["id"] in set(args.only.split(","))]
 rows, passed = [], 0
 for c in cases:
     store.delete_samples()
@@ -55,7 +58,7 @@ lines = [f"# Scope2Cash collections-agent eval ({args.mode})", "",
          f"- Run: {datetime.now().astimezone():%Y-%m-%d %H:%M (UTC%z)}", f"- Toolkit: {paypal_agent.toolkit_label()}",
          f"- Score: **{passed}/{len(cases)}** exact proposal sets (proposals only; nothing executed)", "",
          "| case | pass | expected | proposed | tool modes | ms |", "|---|---|---|---|---|---|"]
-fmt = lambda xs: "<br>".join(f"{t.replace('send_invoice_reminder', 'remind').replace('cancel_sent_invoice', 'cancel')} {n}" for t, n in xs) or "(none)"
+fmt = lambda xs: "<br>".join(f"{t.replace('send_invoice_reminder', 'remind').replace('cancel_sent_invoice', 'cancel').replace('create_payout', 'payout')} {n}" for t, n in xs) or "(none)"
 from app.adapters import llm as _llm  # noqa: E402
 if _llm.USAGE_TOTALS:
     rep = _llm.usage_report()

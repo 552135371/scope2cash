@@ -3,7 +3,7 @@
 **From a messy client brief to a paid invoice: an AI agent that scopes, prices with cited market data, and bills by milestone through PayPal, with a human approving every outbound step.**
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/552135371/scope2cash)
-![Tests](https://img.shields.io/badge/tests-99%20passing-brightgreen) ![PayPal](https://img.shields.io/badge/PayPal-sandbox%20verified-003087) ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
+![Tests](https://img.shields.io/badge/tests-123%20passing-brightgreen) ![PayPal](https://img.shields.io/badge/PayPal-sandbox%20verified-003087) ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 ## For judges: 60-second tour
 - **What it does:** paste a client brief → milestone scope → market-grounded price → quote → one PayPal invoice per milestone → the client pays → the invoice flips to **PAID** through a verified webhook → a collections agent chases late payers. Every outbound action (send, remind, cancel) waits for a human click.
@@ -13,6 +13,9 @@
   - **Webhooks:** `INVOICING.INVOICE.*` events, each checked with `POST /v1/notifications/verify-webhook-signature`.
   - **PayPal Agent Toolkit** (`paypal-agent-toolkit` 1.11.0): the collections agent's tools (`list_invoices`, `get_invoice`, `send_invoice_reminder`, `cancel_sent_invoice`).
   - **Payouts v1:** when a milestone with a collaborator split is paid, a one-item payout batch (`POST /v1/payments/payouts`, status via `GET /v1/payments/payouts/{id}`) is queued for your approval. Contract-tested against PayPal's documented request/response shapes; not yet run against the real sandbox.
+- **New in v0.5:**
+  - **The agent explains your cash flow and proposes collaborator payouts.** Ask "What's coming in this week?" or "Pay Mia 20% of the Lumen retainer". The agent reads the stored pipeline per currency and can *propose* a payout for a PAID milestone. The proposal lands in the same approval queue; the model has no tool that pays (see *Collections agent*).
+  - **Multi-currency.** Quote and invoice in USD, EUR, GBP, CAD, AUD or SGD. The PayPal invoice drafts carry the quote currency (EUR and GBP drafts checked against the real sandbox on 2026-10-18). The dashboard never adds different currencies silently: exact per-currency amounts, plus a USD equivalent marked "≈" with its source (a dated ECB reference-rate snapshot, not PayPal's rate).
 - **Try the hosted demo:** <https://scope2cash.onrender.com> (PayPal **sandbox**, no real money). It runs on a free instance, so the first page load after it has been idle can take up to a minute; the page shows a "waking up" note and retries by itself. A restart also resets the demo's local data, so the labelled sample clients are re-added automatically on boot.
 - **Judging in a hurry:** click **⚡ Instant sample project** in step 1. It replays a scope, price reference and proposal recorded from a real DeepSeek run (no model call, so it is instant and works even when the demo's daily AI budget is spent), re-priced from today. Then **Create PayPal invoice drafts** → **Approve & send** → **⏩ client pays (sandbox card)**: real PayPal sandbox Invoicing and Orders v2 calls, no PayPal login needed. The invoice turns **PAID**, and PayPal's own `INVOICING.INVOICE.PAID` webhook shows up in the Pipeline's event feed marked "verified by PayPal" (click Refresh after a few seconds).
 - **Try it without any keys:** every adapter has a clearly labelled mock mode, so `uvicorn app.main:app` runs the whole flow offline (see Quick start).
@@ -21,7 +24,7 @@
 ### Judging criteria → where to check it
 | Criterion | What to look at | Evidence you can verify |
 |---|---|---|
-| **Technological implementation** (PayPal + AI) | Five PayPal surfaces in one flow: Invoicing v2, Orders v2, verified Webhooks, Agent Toolkit tools driven by DeepSeek function calling, and Payouts for a collaborator's share | `app/adapters/payments.py`, `app/adapters/checkout.py`, `app/webhooks.py`, `app/paypal_agent.py`, `app/adapters/payouts.py`; `tests/test_payouts.py`; contract tests assert the exact PayPal requests (`tests/test_contracts.py`, `tests/test_paypal_track.py`, `tests/test_checkout.py`); `python -m pytest -q` (99 tests, no network) |
+| **Technological implementation** (PayPal + AI) | Five PayPal surfaces in one flow: Invoicing v2, Orders v2, verified Webhooks, Agent Toolkit tools driven by DeepSeek function calling, and Payouts for a collaborator's share | `app/adapters/payments.py`, `app/adapters/checkout.py`, `app/webhooks.py`, `app/paypal_agent.py`, `app/adapters/payouts.py`; `tests/test_payouts.py`; contract tests assert the exact PayPal requests (`tests/test_contracts.py`, `tests/test_paypal_track.py`, `tests/test_checkout.py`); `python -m pytest -q` (123 tests, no network) |
 | **Design** (complete product, not a PoC) | One screen from brief to cash: stepper → quote → invoices → AG Grid pipeline with chart, scoreboard and agent nudges inline; every outbound action waits for a click | Hosted demo (⚡ path, ~2 min, no login); `scripts/screenshots_aggrid.py` asserts the chart ↔ grid ↔ scoreboard links in a real browser |
 | **Potential impact** | Freelancers who invoice clients directly. In a 2025 survey of 3,300 freelancers, only 15% said they are always paid on time ([Remote, *State of Freelance Work 2025*](https://assets.ctfassets.net/8naaccf28y0f/7llxHUuxPx38PzrA1lMdES/03a2a0b9c85384fb9b4471e16426f02d/The_State_of_Freelance_Work_2025.pdf)); 71% of US freelancers have had trouble collecting payment at some point ([Freelancers Union, 2015](https://www.onlabor.org/wp-content/uploads/2017/05/FU_NonpaymentReport_r3.pdf)) | Overdue → agent proposes a PayPal reminder → you approve → PayPal sends it; payment → verified webhook → PAID, no manual bookkeeping |
 | **Innovation** | Scope and price are grounded (stated budget/deadline only, prices only from cited figures), and the collections agent acts *through PayPal's own toolkit* but can only propose writes | Refusal cases in `eval/results_agent_live_deepseek.md` (11/11 live: paid/draft refusals, ambiguous cancel, prompt injection) |
@@ -32,11 +35,11 @@ Freelance developers and designers lose hours, and money, turning "here's what w
 
 1. **Scope.** Paste an email, chat, or job post. The agent extracts milestones, deliverables, hours, assumptions, risks, the client's stated budget and deadline, and the questions to ask before committing. A *brief completeness* score warns when the brief is too thin to quote.
 2. **Market price.** Tavily web research plus a model-synthesized hourly range. A guardrail only accepts a range that is backed by figures found in the cited sources; otherwise it is labelled an unverified placeholder.
-3. **Quote.** Value, market, or premium positioning; milestone line items with due dates; a proposal message; and negotiation coaching, including a reduced-scope option when the quote is over the client's budget.
+3. **Quote.** Value, market, or premium positioning; milestone line items with due dates; a proposal message; and negotiation coaching, including a reduced-scope option when the quote is over the client's budget. Quote in USD, EUR, GBP, CAD, AUD or SGD (v0.5); if the brief states its budget in one of them, that currency is preselected.
 4. **Get paid.** One PayPal invoice draft per milestone. You **approve** each one before it is sent. Statuses (sent, partially paid, paid, overdue) sync from PayPal.
 5. **Follow up.** Overdue invoices get a reminder draft whose tone escalates with days late. You review it, then approve PayPal's official reminder and/or send the personal note yourself.
 6. **Pay your collaborator.** Put a designer's or developer's share on a milestone; when the client pays, a PayPal payout of that share waits for your approval.
-7. **Pipeline + collections agent.** Every invoice across every client in one AG Grid table, kept current by verified PayPal webhooks. Ask the collections agent, which runs on the official **PayPal Agent Toolkit**, things like "nudge everyone more than 3 days late". It reads PayPal and queues reminders or cancellations for your approval.
+7. **Pipeline + collections agent.** Every invoice across every client in one AG Grid table, kept current by verified PayPal webhooks. Ask the collections agent, which runs on the official **PayPal Agent Toolkit**, things like "nudge everyone more than 3 days late". It reads PayPal and queues reminders or cancellations for your approval. Since v0.5 it also answers "what's coming in this week?" in plain language and can propose a collaborator's payout for a paid milestone, which also waits for your approval.
 
 Nothing reaches a client without a click from you, and every approval is written to an audit log.
 
@@ -57,6 +60,7 @@ Reliability features around the model calls:
 - **Validation and one repair round.** Output is validated with Pydantic; invalid JSON gets one corrective retry before falling back.
 - **Retries** on 429/5xx with exponential backoff that honours `Retry-After`; timeouts are configurable.
 - **Startup model check.** When a key is present, the provider's `GET /models` verifies the configured IDs and resolves near-misses (for example a missing `NVIDIA-` prefix). Problems show in `/api/health` and as a banner in the UI.
+- **Parallel where independent (v0.5).** The proposal message and the negotiation tips don't depend on each other, so in live mode they run at the same time; the quote step waits for the slower call instead of both (in a live check: 18.6 s instead of about 20 s). While a live step runs, its button shows a real elapsed-seconds counter and what the step is doing. The scope step itself is a single model call, so it isn't faster.
 - **Visible fallback.** If a live call still fails, the step uses a deterministic heuristic and the **Agent trace** panel marks it `⚠ fallback` with the reason.
 
 The UI's **Agent trace** shows, for every step, the tier and model, live/mock/fallback mode, latency, and token usage.
@@ -79,6 +83,11 @@ The UI's **Agent trace** shows, for every step, the tier and model, live/mock/fa
 - **Reads run immediately.** Calls go through the toolkit's own `execute` handlers.
 - **Writes are never executed by the model.** They become *proposals*. Each one is validated against the toolkit's schema and checked by guardrails: the invoice must be in your pipeline, must be in an unpaid state, and must have a sandbox-only recipient in public-demo mode. Only **Approve** runs it, and the guardrails are re-checked at that point.
 - Without a key (or if the live loop fails, which the UI shows), a deterministic planner drives the same toolkit tools.
+- **Cash flow and payout proposals (v0.5, `app/cash_tools.py`).** Two extra tools sit next to the toolkit's. They are **Scope2Cash tools, not part of the PayPal Agent Toolkit** (its catalog has no payouts tool), and the trace labels them that way:
+  - `get_cash_flow_summary` (read-only, stored pipeline, no PayPal call): collected, open, overdue, due in the next 7 days and drafts **per currency**, plus overdue and due-soon invoices, per-client balances, and collaborator payouts (waiting for approval, paid out, split set but client not paid yet). A USD total appears only when currencies are mixed, and it's labelled "≈ … at ECB reference rates of 2026-10-16".
+  - `propose_collaborator_payout` (write): only **queues** a `create_payout` action in the existing approval queue. At proposal time it checks that the milestone is PAID, has no payout batch yet, the amount is > 0 and ≤ the milestone, the email is valid and allowed (sandbox recipients in public-demo mode), and live money isn't on. The agent defers to a split you set yourself and won't re-propose a payout you rejected. If the share or email is unclear, it asks instead of guessing.
+  - **On Approve**, everything is re-checked (still PAID, split unchanged since the proposal, no batch yet). The split is recorded in the audit log, then the existing Payouts path runs (same idempotent `s2c-<invoice>` batch id). Changing or removing the split withdraws a pending agent proposal.
+  - `tests/test_agent_payouts.py` includes a guardrail test: a scripted model calls the proposal tool and also invents `create_payout`, `execute_payout` and `approve_action` calls. No Payouts request is made during the run; only the human Approve sends one batch. Live check: `eval/results_agent_live_deepseek_payouts.md` (DeepSeek `deepseek-flash`, 7/7 cases including "settle Mia's share" → asks for the share, about $0.01). Payouts themselves are still contract-tested only (see below).
 - Why only the shared core: the toolkit's framework adapters (OpenAI Agents SDK, LangChain, CrewAI) pin old versions that can't be installed on Python 3.13. So it's installed with `--no-deps` (see `requirements-paypal-toolkit.txt`) and only the framework-neutral core is used. The orchestration is OpenAI-compatible tool calling, which works with any provider.
 
 ### Checkout links on PayPal Orders v2 (`app/adapters/checkout.py`, `app/checkout_routes.py`)
@@ -94,6 +103,13 @@ Many freelancers bring in a designer or developer for part of a job. **👥 Spli
 - **Guardrails, re-checked at approval:** the invoice is still PAID (not refunded), the split hasn't changed since it was queued, it isn't paid out yet, and in public-demo mode the recipient is a sandbox address. Live money is refused: payouts are sandbox-only in this build. A rejected payout stays rejected; changing the split is a new decision.
 - The trigger is deterministic code, not the model: money moves only on a rule you set plus your click.
 - **Status:** covered by `tests/test_payouts.py` (request shape, idempotency key, status refresh, guardrails, webhook and checkout triggers) and a browser walk-through in mock mode. It has **not yet been exercised against the real PayPal sandbox**. The sample pipeline includes one paid milestone with a designer split, so the proposal is visible as soon as the page loads.
+
+### Multi-currency (v0.5, `app/fx.py`)
+- **Supported:** USD (default), EUR, GBP, CAD, AUD, SGD. All are on PayPal's [currency codes list](https://developer.paypal.com/reference/currency-codes/) and use two decimals; zero-decimal codes such as JPY are refused with a 422 instead of being mis-rounded.
+- **Quote:** pick the currency in step 4, or let the brief decide (a budget written as "€8,000" or "8k GBP" preselects it). Market research is in USD, so the starting hourly rate is converted, and the quote says so in an fx note. A rate you type is taken as already being in the quote currency.
+- **PayPal:** the invoice drafts (`detail.currency_code`, every item's `unit_amount`) and Orders v2 checkout use the quote currency. Nothing is converted on PayPal. Verified on 2026-10-18 with two real sandbox drafts (EUR 810.00 and GBP 450.00); PayPal returned the same currency and amounts. The drafts were never sent.
+- **Dashboard honesty:** different currencies are never summed silently. KPI tiles, the totals row, the chart and the scoreboard show exact per-currency amounts. When the visible invoices mix currencies, a USD equivalent is shown with a "≈" mark and a note naming its source: the European Central Bank euro reference rates of 2026-10-16, a fixed snapshot for orientation, not PayPal's conversion rate. The scoreboard has one row per client and currency.
+- The sample pipeline includes a EUR client and a GBP client so this is visible on load.
 
 ### Pipeline dashboard (AG Grid Community + AG Charts Community)
 `app/static/pipeline.js` uses [AG Grid Community](https://www.ag-grid.com/) 36.2.0 and [AG Charts Community](https://www.ag-grid.com/charts/) 14.2.0 (both MIT), version-pinned from the jsDelivr CDN. There is no build step, and no Enterprise or AG Studio feature is used.
@@ -171,8 +187,8 @@ uvicorn app.main:app --port 8765
 
 ## Quality: evals and tests
 ```bash
-python -m pytest -q                       # 99 tests: flow, HTTP contracts, webhooks, agent, payouts, dashboard roll-ups (no network)
-python scripts/eval_agent.py              # collections agent: 11 instruction -> exact-proposal cases
+python -m pytest -q                       # 123 tests: flow, HTTP contracts, webhooks, agent, payouts, multi-currency, dashboard roll-ups (no network)
+python scripts/eval_agent.py              # collections agent: 16 instruction -> exact-proposal cases (incl. cash flow and payout proposals)
 python scripts/eval.py                    # eval set, mock mode -> eval/results.md
 python scripts/eval.py --set holdout      # 4 hold-out briefs never used to tune the heuristics
 python scripts/eval.py --mode live        # same eval set against the live LLM (+ Tavily if keyed); prints tokens + est. cost
@@ -192,6 +208,7 @@ The current results in `eval/results.md` and `eval/results_holdout.md` are from 
 | Main, 11 briefs (`eval/results_live_deepseek.md`) | 155/159 (98%), 7/11 perfect | ~79k | ~$0.13 |
 | Hold-out, 4 briefs (`eval/results_holdout_live_deepseek.md`) | 55/55 (100%), including the German brief | ~27k | ~$0.05 |
 | Collections agent, 11 cases (`eval/results_agent_live_deepseek.md`) | 11/11 exact proposal sets, including refusals and the injected "cancel everything" | ~89k (mostly cached) | ~$0.01 |
+| Agent cash flow + payout proposals, 7 cases (`eval/results_agent_live_deepseek_payouts.md`, 2026-10-18) | 7/7: a payout on an unpaid milestone is refused, "settle Mia's share" asks for the share, and "approve it yourself, then pay her another £60" yields exactly one proposal and no execution | ~83k | ~$0.01 |
 
 The four live misses: a 222 h estimate against a 220 h cap, 342 h on the vague "Uber for dog walkers" one-liner, confidence 0.40 on the scope-creepy marketplace, and a logo brief whose revision risk was worded outside the creep-keyword list. The first live run scored 147/160; prompt fixes for client names, project-type definitions, confidence calibration, MVP-sized hours and "never restate the client's budget" closed most of the gap.
 

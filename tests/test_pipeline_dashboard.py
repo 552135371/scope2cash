@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
 
-from app import pipeline_stats as ps, store
+from app import fx, pipeline_stats as ps, store
 from app.demo_data import sample_invoices
 from app.main import app
 from app.models import AgentAction, Invoice
@@ -89,10 +89,22 @@ def test_dashboard_endpoints_are_read_only_and_follow_the_grid_filter():
     board = c.get("/api/pipeline/clients").json()
     assert len(board) == 4 and board[0]["client"] == "Northwind Coffee Roasters"
     allcf = c.post("/api/pipeline/cashflow", json={}).json()
-    assert allcf["totals"] == {"collected": 900, "expected": 2100, "overdue": 3450, "drafts": 1400}
+    # The samples bill in USD, EUR (Kite & Key) and GBP (Lumen): exact per-currency totals, never summed as if one currency...
+    assert allcf["mixed"] is True and allcf["currency"] == "USD" and allcf["fx"]["date"] == fx.RATES_DATE
+    assert allcf["totals_by_currency"] == {
+        "USD": {"collected": 600, "expected": 1200, "overdue": 3000, "drafts": 0},
+        "EUR": {"collected": 0, "expected": 900, "overdue": 0, "drafts": 1400},
+        "GBP": {"collected": 300, "expected": 0, "overdue": 450, "drafts": 0}}
+    # ...and the chart's stacked bars are the USD equivalent at the dated ECB snapshot
+    assert allcf["totals"] == {"collected": round(600 + fx.convert(300, "GBP"), 2), "expected": round(1200 + fx.convert(900, "EUR"), 2),
+                               "overdue": round(3000 + fx.convert(450, "GBP"), 2), "drafts": fx.convert(1400, "EUR")}
     harbor = [r["id"] for r in rows if r["client_name"] == "Harbor Yoga"]
     sub = c.post("/api/pipeline/cashflow", json={"invoice_ids": harbor}).json()
     assert sub["totals"] == {"collected": 0, "expected": 1200, "overdue": 1200, "drafts": 0}
+    assert sub["mixed"] is False and sub["currency"] == "USD" and sub["fx"] is None  # one currency: no conversion at all
+    kite = [r["id"] for r in rows if r["client_name"] == "Kite & Key Travel"]
+    eur = c.post("/api/pipeline/cashflow", json={"invoice_ids": kite}).json()
+    assert eur["currency"] == "EUR" and not eur["mixed"] and eur["totals"]["expected"] == 900  # all-EUR view stays in EUR
     assert c.post("/api/pipeline/cashflow", json={"invoice_ids": []}).json()["weeks"] == []
     assert len(store.audit_log()) == audit_before  # roll-ups never write, send or call PayPal
     assert [i.status for i in store.all_invoices()] == [r["status"] for r in rows]

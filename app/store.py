@@ -76,8 +76,16 @@ def next_seq() -> int:
 
 
 def delete_samples() -> None:
+    """Remove the SAMPLE invoices and any proposal still waiting on them. Re-seeding mints new sample ids, so a pending
+    proposal for a deleted sample (e.g. the sample designer payout) would otherwise stay in the queue forever, pointing at
+    an invoice that no longer exists. Decided actions are kept as history."""
     with _lock:
         db = _db()
+        ids = [r[0] for r in db.execute("SELECT id FROM invoices WHERE json_extract(data, '$.sample') = 1").fetchall()]
+        if ids:
+            marks = ",".join("?" * len(ids))
+            db.execute(f"DELETE FROM agent_actions WHERE json_extract(data, '$.status') = 'pending' "
+                       f"AND json_extract(data, '$.invoice_id') IN ({marks})", ids)
         db.execute("DELETE FROM invoices WHERE json_extract(data, '$.sample') = 1")
         db.commit()
 

@@ -160,3 +160,26 @@ def test_checkout_capture_queues_the_payout_without_calling_payouts():
     assert c.post(f"/api/demo/{inv.id}/sandbox-card-pay").json()["invoice"]["status"] == "PAID"
     [a] = [x for x in store.actions("pending") if x.tool == "create_payout"]  # queued directly by the capture hook
     assert a.invoice_id == inv.id and not store.get(inv.id).payout_batch_id
+
+
+def test_reseed_drops_pending_proposals_of_deleted_samples_but_keeps_history():
+    """'Load sample clients' mints new sample ids; the old sample payout proposal must not linger as an orphan."""
+    c = TestClient(app)
+    c.post("/api/demo/seed")
+    old = _pending(c)
+    assert len(old) == 1
+    real = _inv(inv_id="INV2-MOCK-REAL-0002", number="S2C-T-02", split_label="Dev (Ana)", split_email="ana@dev.example.com",
+                split_amount=100.0)
+    payouts_flow.queue_if_paid(real)
+    c.post("/api/demo/seed")
+    pend = _pending(c)
+    assert len(pend) == 2 and old[0]["id"] not in [a["id"] for a in pend]  # new sample proposal + the real one
+    assert {a["invoice_number"] for a in pend} == {"S2C-SAMPLE-01", "S2C-T-02"}
+    invoice_ids = {i["id"] for i in c.get("/api/invoices").json()}
+    assert all(a["invoice_id"] in invoice_ids for a in pend)  # nothing points at a deleted invoice
+    # a decided action survives a reseed (history)
+    new_sample = next(a for a in pend if a["invoice_number"] == "S2C-SAMPLE-01")
+    c.post(f"/api/agent/actions/{new_sample['id']}/reject")
+    c.post("/api/demo/seed")
+    assert store.get_action(new_sample["id"]).status == "rejected"
+    assert len(_pending(c)) == 2  # fresh sample proposal + the real one, no duplicates

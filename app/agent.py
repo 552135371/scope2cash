@@ -7,13 +7,15 @@ deterministic heuristic (app/heuristics.py) used in mock mode and as a visible f
 """
 from __future__ import annotations
 
+import contextvars
 import json
 import math
+from concurrent.futures import ThreadPoolExecutor
 import re
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import config
+from . import config, fx
 from . import heuristics as H
 from .adapters.llm import LLMResult, get_llm
 from .adapters.search import get_search
@@ -81,6 +83,8 @@ def build_scope(requirement: str) -> Tuple[Scope, List[TraceStep]]:
         scope.client_budget = stated_budget
     if stated_deadline and not scope.deadline:
         scope.deadline = H.pretty_deadline(stated_deadline)
+    # The budget's currency comes from the brief's own text (deterministic), never from the model.
+    scope.budget_currency = H.extract_budget_currency(requirement) if scope.client_budget else None
     hours = sum(m.est_hours for m in scope.milestones)
     return scope, [_trace("Extract scope & milestones", r, f"{len(scope.milestones)} milestones · {hours:.0f} h · {why}")]
 
@@ -152,9 +156,12 @@ def _cut_option(scope: Scope, items: List[LineItem]) -> Optional[Tuple[str, floa
 
 
 def price_items(scope: Scope, pricing: PricingReference, hourly_rate: float | None,
-                position: str) -> Tuple[float, List[LineItem], float, str, Optional[Tuple[str, float]]]:
-    """Deterministic part of the quote: rate, milestone line items with due dates from today, total, budget note."""
-    lo, hi = pricing.hourly_low, pricing.hourly_high
+                position: str, currency: str = "USD") -> Tuple[float, List[LineItem], float, str, Optional[Tuple[str, float]]]:
+    """Deterministic part of the quote: rate, milestone line items with due dates from today, total, budget note.
+    Everything returned is in `currency`. The market range (pricing.currency, USD from the sources) is converted at the
+    fx snapshot only to pick a starting rate; an explicit hourly_rate is taken as already being in `currency`."""
+    k = fx.rate(pricing.currency, currency) if pricing.currency != currency else 1.0
+    lo, hi = pricing.hourly_low * k, pricing.hourly_high * k
     rate = round(hourly_rate or {"value": lo + (hi - lo) * 0.2, "market": (lo + hi) / 2, "premium": lo + (hi - lo) * 0.85}[position])
     start = date.today()
     items, weeks = [], 0.0
@@ -166,17 +173,29 @@ def price_items(scope: Scope, pricing: PricingReference, hourly_rate: float | No
     total = sum(i.amount for i in items)
     for i in items:
         i.percent = round(i.amount / total * 100, 1)
-    gap = (total - scope.client_budget) if scope.client_budget else None
+    budget, conv = scope.client_budget, ""
+    if budget and scope.budget_currency and scope.budget_currency != currency:
+        conv = f" (stated as {fx.fmt(budget, scope.budget_currency)}; ≈ converted at {fx.label()})"
+        budget = fx.convert(budget, scope.budget_currency, currency)
+    gap = (total - budget) if budget else None
     cut = _cut_option(scope, items)
     budget_note = ""
     if gap is not None:
         if gap > 0:
-            budget_note = f"Quote is ${gap:,.0f} above the client's stated budget (${scope.client_budget:,.0f})."
+            budget_note = f"Quote is {fx.fmt(gap, currency)} above the client's stated budget ({fx.fmt(budget, currency)}{conv})."
             if cut:
-                budget_note += f" Dropping \"{cut[0]}\" brings it to ${total - cut[1]:,.0f}."
+                budget_note += f" Dropping \"{cut[0]}\" brings it to {fx.fmt(total - cut[1], currency)}."
         else:
-            budget_note = f"Quote fits the client's stated budget (${scope.client_budget:,.0f})."
+            budget_note = f"Quote fits the client's stated budget ({fx.fmt(budget, currency)}{conv})."
     return rate, items, total, budget_note, cut
+
+
+def fx_note(pricing: PricingReference, currency: str) -> str:
+    if pricing.currency == currency:
+        return ""
+    return (f"Market range is in {pricing.currency} (from the sources); the starting rate was converted at "
+            f"1 {pricing.currency} = {fx.rate(pricing.currency, currency):.4f} {currency} ({fx.label()}, a reference "
+            f"snapshot, not PayPal's rate). Invoices are drafted in {currency}; nothing is converted on PayPal.")
 
 
 QUOTE_TERMS = ["Each milestone is invoiced via PayPal when it starts and is due on its milestone date",
@@ -185,29 +204,44 @@ QUOTE_TERMS = ["Each milestone is invoiced via PayPal when it starts and is due 
                "Source files and IP transfer to the client on final payment"]
 
 
-def build_quote(scope: Scope, pricing: PricingReference, hourly_rate: float | None, position: str) -> Tuple[Quote, List[TraceStep]]:
+def _in_parallel(*calls):
+    """Run independent live model calls at the same time (v0.5: the proposal and the negotiation tips do not depend on
+    each other, so step 4 waits for the slower of the two instead of both). Each call runs in a copy of the request's
+    context so per-request settings (e.g. the offline switch) still apply; each call keeps its own fallback."""
+    with ThreadPoolExecutor(max_workers=len(calls)) as pool:
+        futures = [pool.submit(contextvars.copy_context().run, c) for c in calls]
+        return tuple(f.result() for f in futures)
+
+
+def build_quote(scope: Scope, pricing: PricingReference, hourly_rate: float | None, position: str,
+                currency: str | None = None) -> Tuple[Quote, List[TraceStep]]:
     s = config.get_settings()
-    rate, items, total, budget_note, cut = price_items(scope, pricing, hourly_rate, position)
-    gap = (total - scope.client_budget) if scope.client_budget else None
+    currency = fx.normalize(currency or s.currency)
+    rate, items, total, budget_note, cut = price_items(scope, pricing, hourly_rate, position, currency)
+    budget = scope.client_budget
+    if budget and scope.budget_currency and scope.budget_currency != currency:
+        budget = fx.convert(budget, scope.budget_currency, currency)
+    gap = (total - budget) if budget else None
     llm = get_llm()
     system = ("You write concise, warm client proposals for an independent freelancer. Return JSON {\"cover_message\": str} "
               "(<= 130 words, plain text, mention milestone-based PayPal invoicing, ask the single most important open "
               f"question, sign as {s.freelancer_name}). The only numbers with a currency you may write are the total and the hourly "
-              "rate given; never restate the client's budget or invent other prices.")
-    payload = {"scope": scope.model_dump(exclude={"assumptions"}), "total": total, "rate": rate, "currency": s.currency}
-    r1 = llm.complete_json("main", system, json.dumps(payload), lambda: H.mock_cover(scope, total, rate, s.freelancer_name),
-                           validate=lambda d: _need(d.get("cover_message")))
+              "rate given, in the given currency (write its symbol or ISO code); never restate the client's budget or invent other prices.")
+    payload = {"scope": scope.model_dump(exclude={"assumptions"}), "total": total, "rate": rate, "currency": currency}
+    call1 = lambda: llm.complete_json("main", system, json.dumps(payload), lambda: H.mock_cover(scope, total, rate, s.freelancer_name, currency),
+                                      validate=lambda d: _need(d.get("cover_message")))
     system2 = ("You are a pricing negotiation coach for freelancers. Think through the client's budget, timeline and risks, "
                "then return JSON {\"negotiation_tips\": [exactly 3 short, specific, actionable tips]}. Prefer trading scope "
                "over discounting. Only use numbers present in the input.")
-    deep_in = {"total": total, "rate": rate, "client_budget": scope.client_budget, "deadline": scope.deadline,
+    deep_in = {"currency": currency, "total": total, "rate": rate, "client_budget": budget, "deadline": scope.deadline,
                "confidence": scope.confidence, "risks": scope.risks, "milestones": [(li.milestone, li.amount) for li in items],
-               "market": pricing.model_dump(include={"hourly_low", "hourly_high", "low", "median", "high", "grounded"})}
-    r2 = llm.complete_json("deep", system2, json.dumps(deep_in), lambda: H.mock_tips(scope, total, rate, gap, cut),
-                           validate=lambda d: _need(d.get("negotiation_tips")))
+               "market": pricing.model_dump(include={"currency", "hourly_low", "hourly_high", "low", "median", "high", "grounded"})}
+    call2 = lambda: llm.complete_json("deep", system2, json.dumps(deep_in), lambda: H.mock_tips(scope, total, rate, gap, cut, currency),
+                                      validate=lambda d: _need(d.get("negotiation_tips")))
+    r1, r2 = _in_parallel(call1, call2) if llm.mode == "live" else (call1(), call2())
     tips = [str(t) for t in r2.data.get("negotiation_tips", [])][:4]
-    quote = Quote(currency=s.currency, hourly_rate=rate, total=total, line_items=items, budget_note=budget_note,
-                  terms=list(QUOTE_TERMS),
+    quote = Quote(currency=currency, hourly_rate=rate, total=total, line_items=items, budget_note=budget_note,
+                  terms=list(QUOTE_TERMS), fx_note=fx_note(pricing, currency),
                   cover_message=str(r1.data.get("cover_message", "")), negotiation_tips=tips)
     return quote, [_trace("Draft proposal message", r1), _trace("Negotiation coaching", r2, f"{len(tips)} tips")]
 

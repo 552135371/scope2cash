@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import agent, config, guard, payouts_flow, paypal_agent, pipeline_stats, store, webhooks
+from . import agent, config, fx, guard, payouts_flow, paypal_agent, pipeline_stats, store, webhooks
 from .checkout_routes import router as checkout_router
 from .adapters import llm as llm_mod
 from .adapters.http import AdapterError
@@ -17,7 +17,7 @@ from .models import (AgentAction, AgentRequest, AgentResponse, CashflowRequest, 
                      PricingRequest, PricingResponse, QuoteRequest, QuoteResponse, ReminderResponse, ReminderSendResponse,
                      SampleProjectResponse, ScopeRequest, ScopeResponse, SplitRequest, TraceStep, WebhookResult)
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 BOOTED_AT = store.now()  # lets the UI notice a restart (= the free host wiped its demo data)
 STATIC = Path(__file__).parent / "static"
 
@@ -129,7 +129,7 @@ def pricing(req: PricingRequest):
 @app.post("/api/quote", response_model=QuoteResponse)
 def quote(req: QuoteRequest):
     pre = _budget_step()
-    q, trace = agent.build_quote(req.scope, req.pricing, req.hourly_rate, req.position)
+    q, trace = agent.build_quote(req.scope, req.pricing, req.hourly_rate, req.position, req.currency)
     return QuoteResponse(quote=q, trace=pre + trace)
 
 
@@ -287,6 +287,12 @@ async def paypal_webhook(request: Request):
 @app.get("/api/webhooks/events")
 def webhook_events():
     return store.webhook_events()
+
+
+@app.get("/api/fx")
+def fx_info():
+    """Supported quote/invoice currencies and the dated reference rates used ONLY to label mixed-currency roll-ups (≈)."""
+    return {**fx.meta(), "default": config.get_settings().currency}
 
 
 # ---- pipeline dashboard roll-ups (read-only, stored data only: no PayPal or LLM calls) ----
