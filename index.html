@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Magnific × Remotion · 动效原子库（Live Sim）</title>
+<link rel="stylesheet" href="sim.css" />
+<style>
+:root{
+  --bg:#fbf7f2; --bg2:#f3ebe3; --card:#fff; --ink:#2a2430; --ink2:#5c5366; --muted:#8a8194;
+  --line:#e8ddd2; --peach:#f0a98a; --peach-soft:#fce8de; --lav:#b9a7d9; --lav-soft:#ebe4f5;
+  --mint:#8fc9b0; --mint-soft:#e4f4ec; --warn:#d97757; --ok:#5a9e7e; --ban:#c45c6a; --must:#c47a3a;
+  --radius:16px; --shadow:0 10px 30px rgba(42,36,48,.06);
+  --font:"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:var(--font);color:var(--ink);background:
+  radial-gradient(900px 420px at 10% -10%,var(--peach-soft),transparent 60%),
+  radial-gradient(700px 380px at 100% 0%,var(--lav-soft),transparent 55%),
+  var(--bg);line-height:1.55}
+a{color:#6b4f9a;text-decoration:none}a:hover{text-decoration:underline}
+.wrap{display:grid;grid-template-columns:240px 1fr;gap:0;min-height:100vh}
+@media(max-width:960px){.wrap{grid-template-columns:1fr}.toc{position:static!important;height:auto!important;border-right:none;border-bottom:1px solid var(--line)}}
+.toc{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;padding:28px 18px;border-right:1px solid var(--line);background:rgba(251,247,242,.92);backdrop-filter:blur(8px)}
+.toc .brand{font-weight:800;font-size:15px;letter-spacing:.02em;margin-bottom:4px}
+.toc .sub{font-size:12px;color:var(--muted);margin-bottom:18px}
+.toc a{display:block;padding:8px 10px;border-radius:10px;color:var(--ink2);font-size:13px;margin-bottom:2px}
+.toc a:hover,.toc a.active{background:var(--peach-soft);color:var(--ink);text-decoration:none}
+.toc .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:999px;background:var(--lav-soft);color:#5a4780;margin-left:4px}
+.main{padding:28px 32px 80px;max-width:1180px}
+.atom{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:28px;overflow:hidden}
+.atom-head{padding:18px 20px 12px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;justify-content:space-between}
+.atom-head h2{margin:0;font-size:18px}
+.atom-head .meta{font-size:12px;color:var(--muted)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{font-size:11px;padding:3px 8px;border-radius:999px;background:var(--bg2);color:var(--ink2);border:1px solid var(--line)}
+.pill.ok{background:var(--mint-soft);border-color:#cfe8db;color:#2f6b52}
+.pill.warn{background:#fff3e8;border-color:#f0d2b8;color:var(--must)}
+.tabs{display:flex;gap:4px;padding:10px 14px 0;border-bottom:1px solid var(--line);background:#fcfaf7}
+.tab{appearance:none;border:none;background:transparent;padding:10px 14px;font:inherit;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.active{color:var(--ink);border-bottom-color:var(--peach)}
+.panel{display:none;padding:18px 20px}
+.panel.active{display:block}
+.codepath{font-family:var(--mono);font-size:12px;background:var(--lav-soft);padding:8px 12px;border-radius:10px;margin-bottom:12px;word-break:break-all}
+pre{margin:0 0 12px;padding:14px;background:#1e1a24;color:#f4eef8;border-radius:12px;overflow:auto;font-family:var(--mono);font-size:11.5px;line-height:1.45;max-height:320px}
+.knobs{width:100%;border-collapse:collapse;font-size:13px}
+.knobs th,.knobs td{border-bottom:1px solid var(--line);padding:10px 8px;text-align:left;vertical-align:top}
+.knobs th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+.knobs code{font-family:var(--mono);font-size:11.5px;background:var(--bg2);padding:1px 5px;border-radius:4px}
+.reuse{margin-top:14px;padding:12px 14px;border-left:3px solid var(--lav);background:var(--lav-soft);border-radius:0 12px 12px 0;font-size:13px}
+.footer{font-size:12px;color:var(--muted);margin-top:40px;padding-top:16px;border-top:1px solid var(--line)}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;margin-right:4px}
+.b-asset{background:#e8f4ff;color:#2a5f8a}
+.b-copy{background:#fff3e8;color:#8a4b1a}
+.b-dur{background:#efe8ff;color:#4a3a7a}
+.b-feel{background:#e4f4ec;color:#2f6b52}
+.b-struct{background:#fce8eb;color:#8a2f3d}
+.phases{margin:12px 0 0;padding:12px 14px;background:var(--bg2);border-radius:12px;font-size:13px;color:var(--ink2)}
+.phases ol{margin:8px 0 0;padding-left:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<aside class="toc">
+  <div class="brand">动效原子库</div>
+  <div class="sub">Live Sim · Remotion × Magnific</div>
+  <a href="#banner">总览 / 打开方式</a>
+  <a href="#a01">01 Cascade <span class="tag">瀑布</span></a>
+  <a href="#a02">02 Expand <span class="tag">推散</span></a>
+  <a href="#a03">03 MenuPolygon <span class="tag">槽机</span></a>
+  <a href="#a04">04 RewriteDream <span class="tag">窗口</span></a>
+  <a href="#a05">05 MuchToday <span class="tag">云跃</span></a>
+  <a href="#a06">06 Transforms <span class="tag">霓虹V</span></a>
+  <a href="#a07">07 Lockup <span class="tag">落幅</span></a>
+  <a href="#a08">字幕 / 字效 <span class="tag">优先</span></a>
+  <div style="margin-top:22px;font-size:11px;color:var(--muted);line-height:1.45">
+    旧流程卡 → <a href="../index.html">playbook</a><br/>
+    源仓 <code style="font-size:10px">/workspace/magnific-remotion</code>
+  </div>
+</aside>
+
+<main class="main">
+<div class="sim-banner" id="banner">
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+    <span class="live-badge">LIVE PREVIEW</span>
+    <span style="font-size:12px;color:var(--ink2)">浏览器近似模拟 · 非 Remotion 像素导出</span>
+  </div>
+  <h1>Magnific 动效原子库 · 实时预览｜源码｜可调接口</h1>
+  <p>每个原子 = 一镜 Scene（或共享字效）。改右侧旋钮 → 舞台立刻重跑。要像素级保真请开 Remotion Studio 对着源文件。</p>
+  <p style="margin:8px 0 0;font-size:13px;color:var(--ink);font-weight:600">素材可本地替换；导出真片时把同名接口换进 Remotion Scene。</p>
+  <div class="open-cmd">cd /workspace/wiggo/video/remotion-playbook/atoms
+python3 -m http.server 8766
+# 浏览器打开 http://127.0.0.1:8766/
+# 必须从 atoms/ 起服，否则 stills/ 相对路径会挂；file:// 也可能读不到图</div>
+</div>
+
+<div class="sim-warn" data-stills-warn hidden>
+  <strong>静帧未加载。</strong>
+  <span>请确认用上面的命令从 <code>atoms/</code> 目录起本地服务后再打开，不要从上级目录起服，也不要直接双击 file://。</span>
+</div>
+
+<div class="note" style="font-size:12.5px;color:var(--ink2);background:var(--mint-soft);border:1px solid #cfe8db;border-radius:12px;padding:10px 14px;margin-bottom:22px">
+  共 <strong>8</strong> 个原子均带 Live Sim + <strong>素材槽</strong>（上传即换图，Session-only）。BEATS 各 150f @30fps。默认纹理来自 <code>stills/</code>；槽位标签对齐 Magnific 源码常量（AIGEN / CARDS / PORTRAIT_FOR / staticFile…）。
+</div>
+
+
+<section class="atom" id="a01">
+  <div class="atom-head">
+    <div>
+      <h2>01 · Cascade 卡片瀑布 → 环绕爆炸</h2>
+      <div class="meta">Scene01_Cascade.tsx · BEAT 01-cascade · 150f</div>
+    </div>
+    <div class="pills"><span class="pill ok">可换素材</span><span class="pill warn">改文案</span><span class="pill">改手感</span></div>
+  </div>
+  <div class="tabs" data-tabs>
+    <button class="tab active" data-tab="p">Live 预览</button>
+    <button class="tab" data-tab="s">源码</button>
+    <button class="tab" data-tab="k">可调接口</button>
+  </div>
+  <div class="panel active" data-panel="p">
+    <div class="stage-wrap">
+      <div>
+        <div class="stage" data-stage></div>
+        <div data-transport></div>
+        <div class="phases"><strong>运动相位（对照源码）</strong><ol><li>0–12 落位：上下两列落入，中缝留给字</li><li>12–90 溪流：上列上滚、下列下滚，TYPE_TIMINGS 硬切</li><li>90–110 爆炸：列外翻 → 14 卡飞环位</li><li>110–128 环绕定格 → 128–148 相机 Z-push（scale 1→9）</li><li>148–150 句号「.」盖章</li></ol></div>
+        <div class="fidelity"><strong>保真说明：</strong>双列滚动+硬切字接近；环位弹簧与 per-card blur 简化；无真实 14 张不同图（复用 3 张 still）。<br/><span class="scene-link">Studio 真源：/workspace/magnific-remotion/src/scenes/Scene01_Cascade.tsx</span></div>
+      </div>
+      <div class="knob-panel" data-knobs></div>
+    </div>
+  </div>
+  <div class="panel" data-panel="s">
+    <div class="codepath">src/scenes/Scene01_Cascade.tsx · export const Scene01Cascade（无 props）</div>
+    <pre>const TYPE_TIMINGS = [
+  {text: "we", inFrame: 4, outFrame: 14},
+  {text: "we are", inFrame: 14, outFrame: 38},
+  {text: "stepping up", inFrame: 40, outFrame: 64},
+  {text: "so you can", inFrame: 66, outFrame: 105},
+  {text: "level up", inFrame: 105, outFrame: 142},
+];
+const COL_SPEED = 14; // px/frame
+const TEXT_GAP_HALF = 200;
+// explode [88,112] · camera [128,148]→scale 9</pre>
+    <div class="reuse"><strong>抽走复用：</strong>整文件拷走，只换 AIGEN 路径与 TYPE_TIMINGS。</div>
+  </div>
+  <div class="panel" data-panel="k">
+    <table class="knobs">
+      <thead><tr><th>接口 / 硬编码</th><th>位置</th><th>怎么用</th><th>标签</th></tr></thead>
+      <tbody><tr><td><code>AIGEN / TOP_COLUMN / RING[].src</code></td><td>L45–149</td><td>换 14 张 cascade 卡</td><td><span class='badge b-asset'>素材</span></td></tr><tr><td><code>TYPE_TIMINGS[].text/in/out</code></td><td>L35–41</td><td>中缝文案与切点</td><td><span class='badge b-copy'>文案</span></td></tr><tr><td><code>COL_SPEED / TEXT_GAP_HALF</code></td><td>L85–100</td><td>滚速、中缝</td><td><span class='badge b-feel'>手感</span></td></tr><tr><td>爆炸窗 / 相机 push</td><td>L159–170</td><td>节奏同步文案出点</td><td><span class='badge b-dur'>时长</span></td></tr><tr><td>应抽 props</td><td>—</td><td>texts, cardSources, colSpeed, durationInFrames</td><td><span class='badge b-struct'>候选</span></td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+
+<section class="atom" id="a02">
+  <div class="atom-head">
+    <div>
+      <h2>02 · Expand 标题被推开 → 散射 → 黑幕</h2>
+      <div class="meta">Scene02_Expand.tsx · BEAT 02-expand · 150f</div>
+    </div>
+    <div class="pills"><span class="pill ok">换素材</span><span class="pill warn">改文案</span><span class="pill">改时长</span></div>
+  </div>
+  <div class="tabs" data-tabs>
+    <button class="tab active" data-tab="p">Live 预览</button>
+    <button class="tab" data-tab="s">源码</button>
+    <button class="tab" data-tab="k">可调接口</button>
+  </div>
+  <div class="panel active" data-panel="p">
+    <div class="stage-wrap">
+      <div>
+        <div class="stage" data-stage></div>
+        <div data-transport></div>
+        <div class="phases"><strong>运动相位（对照源码）</strong><ol><li>0–38 oxblood 上 EXPAND/YOUR REACH（heroEnter）</li><li>24–56 缝中绽放 → 散射到外位</li><li>60–78 黑幕擦除</li><li>72–96 with → 96–142 pro workflows → 142+ and</li></ol></div>
+        <div class="fidelity"><strong>保真说明：</strong>标题推开与散射轨迹为近似；黑幕是渐变擦除非源码倾斜帘；无完整 8 卡几何。<br/><span class="scene-link">Studio 真源：/workspace/magnific-remotion/src/scenes/Scene02_Expand.tsx</span></div>
+      </div>
+      <div class="knob-panel" data-knobs></div>
+    </div>
+  </div>
+  <div class="panel" data-panel="s">
+    <div class="codepath">src/scenes/Scene02_Expand.tsx · Scene02Expand（无 props）</div>
+    <pre>const TEXT_HOLD_END = 38;
+const CLUSTER_START = 24, CLUSTER_END = 33, SCATTER_END = 56;
+const WIPE_START = 60, WIPE_END = 78;
+const WITH_START = 72, PRO_START = 96, AND_START = 142;
+const PUSH_APART_PX = 155;</pre>
+    <div class="reuse"><strong>抽走复用：</strong>适合「大标题被内容撑开再进黑场字」的产品段。</div>
+  </div>
+  <div class="panel" data-panel="k">
+    <table class="knobs">
+      <thead><tr><th>接口 / 硬编码</th><th>位置</th><th>怎么用</th><th>标签</th></tr></thead>
+      <tbody><tr><td><code>CARDS[].src</code></td><td>scatter 表</td><td>换 8 张散射卡</td><td><span class='badge b-asset'>素材</span></td></tr><tr><td>标题 / with / pro / and 文案</td><td>ExpandTitle / BlackText</td><td>硬切文案</td><td><span class='badge b-copy'>文案</span></td></tr><tr><td><code>PUSH_APART_PX</code> + 相位常量</td><td>L197–214</td><td>推开距离与节奏</td><td><span class='badge b-feel'>手感</span></td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+
+<section class="atom" id="a03">
+  <div class="atom-head">
+    <div>
+      <h2>03 · MenuPolygon 槽机 → 多边形</h2>
+      <div class="meta">Scene03_MenuPolygon.tsx · BEAT 03 · 150f</div>
+    </div>
+    <div class="pills"><span class="pill ok">换肖像</span><span class="pill warn">改菜单</span><span class="pill">改霓虹</span></div>
+  </div>
+  <div class="tabs" data-tabs>
+    <button class="tab active" data-tab="p">Live 预览</button>
+    <button class="tab" data-tab="s">源码</button>
+    <button class="tab" data-tab="k">可调接口</button>
+  </div>
+  <div class="panel active" data-panel="p">
+    <div class="stage-wrap">
+      <div>
+        <div class="stage" data-stage></div>
+        <div data-transport></div>
+        <div class="phases"><strong>运动相位（对照源码）</strong><ol><li>0–18 hero → 菜单显形</li><li>18–62 MENU_SNAPS 槽机停格 + 肖像</li><li>64–70 vacuum 列表抽走</li><li>92–100 ▶ 旋成三角，oxblood 硬切</li><li>104–130 描边三角 → 四边形 + that</li></ol></div>
+        <div class="fidelity"><strong>保真说明：</strong>槽机缓动简化；tooltip/Sarah·Will 未做；多边形 morph 为 3→4 点插值近似。<br/><span class="scene-link">Studio 真源：/workspace/magnific-remotion/src/scenes/Scene03_MenuPolygon.tsx</span></div>
+      </div>
+      <div class="knob-panel" data-knobs></div>
+    </div>
+  </div>
+  <div class="panel" data-panel="s">
+    <div class="codepath">src/scenes/Scene03_MenuPolygon.tsx · Scene03MenuPolygon（无 props）</div>
+    <pre>const MENU_SNAPS = [
+  {label:"Assistant", at:30}, {label:"Lip Sync", at:36},
+  {label:"Voice Cloning", at:42}, ... {label:"endless tools", at:60},
+];
+PHASE.vacuumStart=64 … triangleDrawStart=104 … morphEnd=130 … thatIn=118</pre>
+    <div class="reuse"><strong>抽走复用：</strong>槽机菜单 + 多边形转场可整段抽到工具导览片。</div>
+  </div>
+  <div class="panel" data-panel="k">
+    <table class="knobs">
+      <thead><tr><th>接口 / 硬编码</th><th>位置</th><th>怎么用</th><th>标签</th></tr></thead>
+      <tbody><tr><td><code>PORTRAIT_FOR</code></td><td>肖像表</td><td>换 6 张肖像</td><td><span class='badge b-asset'>素材</span></td></tr><tr><td><code>MENU_ITEMS_FULL / MENU_SNAPS</code></td><td>L50–99</td><td>菜单文案与停格</td><td><span class='badge b-copy'>文案</span></td></tr><tr><td><code>PHASE.*</code> + neon stroke</td><td>PHASE 表</td><td>节奏与品红</td><td><span class='badge b-feel'>手感</span></td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+
+<section class="atom" id="a04">
+  <div class="atom-head">
+    <div>
+      <h2>04 · RewriteDream 窗口揭示</h2>
+      <div class="meta">Scene04_RewriteDream.tsx · BEAT 04 · 150f</div>
+    </div>
+    <div class="pills"><span class="pill ok">换板</span><span class="pill warn">改文案</span><span class="pill">改切点</span></div>
+  </div>
+  <div class="tabs" data-tabs>
+    <button class="tab active" data-tab="p">Live 预览</button>
+    <button class="tab" data-tab="s">源码</button>
+    <button class="tab" data-tab="k">可调接口</button>
+  </div>
+  <div class="panel active" data-panel="p">
+    <div class="stage-wrap">
+      <div>
+        <div class="stage" data-stage></div>
+        <div data-transport></div>
+        <div class="phases"><strong>运动相位（对照源码）</strong><ol><li>多边形窗口放大揭示粉云 + REWRITE THE RULES</li><li>中心人像叠层</li><li>砸镜切到 DREAM BIGGER + 山景/行走</li></ol></div>
+        <div class="fidelity"><strong>保真说明：</strong>源码有多边形窗口+Veo 视频板；此处用 circle clip + 静帧近似，无真实 polygon hero 描边衔接。<br/><span class="scene-link">Studio 真源：/workspace/magnific-remotion/src/scenes/Scene04_RewriteDream.tsx</span></div>
+      </div>
+      <div class="knob-panel" data-knobs></div>
+    </div>
+  </div>
+  <div class="panel" data-panel="s">
+    <div class="codepath">src/scenes/Scene04_RewriteDream.tsx</div>
+    <pre>// Rewrite local = frame-38; exit punch ~frame 95
+// Dream swap after smash; plates: clouds_pink / mountain + falling/walking alpha</pre>
+    <div class="reuse"><strong>抽走复用：</strong>「窗口揭示大字 + 二次砸进另一世界」叙事段。</div>
+  </div>
+  <div class="panel" data-panel="k">
+    <table class="knobs">
+      <thead><tr><th>接口 / 硬编码</th><th>位置</th><th>怎么用</th><th>标签</th></tr></thead>
+      <tbody><tr><td>clouds / mountain / figures</td><td>aigen/scene04</td><td>换板与人像</td><td><span class='badge b-asset'>素材</span></td></tr><tr><td>REWRITE / DREAM 两行字</td><td>RewriteScene / DreamScene</td><td>文案</td><td><span class='badge b-copy'>文案</span></td></tr><tr><td>窗口/砸镜帧</td><td>enter/exit 插值</td><td>切点</td><td><span class='badge b-dur'>时长</span></td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+
+<section class="atom" id="a05">
+  <div class="atom-head">
+    <div>
+      <h2>05 · MuchToday 云跃 → 锁相</h2>
+      <div class="meta">Scene05_MuchToday.tsx · BEAT 05 · 150f</div>
+    </div>
+    <div class="pills"><span class="pill ok">换云板</span><span class="pill warn">改品牌字</span><span class="pill">改相位</span></div>
+  </div>
+  <div class="tabs" data-tabs>
+    <button class="tab active" data-tab="p">Live 预览</button>
+    <button class="tab" data-tab="s">源码</button>
+    <button class="tab" data-tab="k">可调接口</button>
+  </div>
+  <div class="panel active" data-panel="p">
+    <div class="stage-wrap">
+      <div>
+        <div class="stage" data-stage></div>
+        <div data-transport></div>
+        <div class="phases"><strong>运动相位（对照源码）</strong><ol><li>0–72 MUCH/BIGGER 云跃</li><li>72–90 expo 砸镜 zoom</li><li>90–126 today 字砸 + 霓虹 V 生长</li><li>126+ Freepik 硬切锁相</li></ol></div>
+        <div class="fidelity"><strong>保真说明：</strong>无 leap MP4，仅云静帧+缩放模糊；V 光束为 SVG 折线近似。<br/><span class="scene-link">Studio 真源：/workspace/magnific-remotion/src/scenes/Scene05_MuchToday.tsx</span></div>
+      </div>
+      <div class="knob-panel" data-knobs></div>
+    </div>
+  </div>
+  <div class="panel" data-panel="s">
+    <div class="codepath">src/scenes/Scene05_MuchToday.tsx</div>
+    <pre>const PHASE_JUMP_END = 72;
+const PHASE_ZOOM_END = 90;
+const PHASE_TODAY_END = 126;</pre>
+    <div class="reuse"><strong>抽走复用：</strong>大字云跃进品牌锁相的转场。</div>
+  </div>
+  <div class="panel" data-panel="k">
+    <table class="knobs">
+      <thead><tr><th>接口 / 硬编码</th><th>位置</th><th>怎么用</th><th>标签</th></tr></thead>
+      <tbody><tr><td><code>figure_leap</code> / clouds</td><td>板</td><td>换跃行动作板</td><td><span class='badge b-asset'>素材</span></td></tr><tr><td>MUCH/BIGGER / today / Freepik</td><td>DarkLockup</td><td>文案品牌</td><td><span class='badge b-copy'>文案</span></td></tr><tr><td>PHASE_* 常量</td><td>L38–40</td><td>节奏</td><td><span class='badge b-dur'>时长</span></td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+
+<section class="atom" id="a06">
+  <div class="atom-head">
+    <div>
+      <h2>06 · Transforms 霓虹 V → M</h2>
+      <div class="meta">Scene06_Transforms.tsx · BEAT 06 · 150f · 无位图</div>
+    </div>
+    <div class="pills"><span class="pill">纯矢量</span><span class="pill warn">改动词</span><span class="pill">改闪白</span></div>
+  </div>
+  <div class="tabs" data-tabs>
+    <button class="tab active" data-tab="p">Live 预览</button>
+    <button class="tab" data-tab="s">源码</button>
+    <button class="tab" data-tab="k">可调接口</button>
+  </div>
+  <div class="panel active" data-panel="p">
+    <div class="stage-wrap">
+      <div>
+        <div class="stage" data-stage></div>
+        <div data-transport></div>
+        <div class="phases"><strong>运动相位（对照源码）</strong><ol><li>transforms 硬切 into（默认 f21）</li><li>V 腿 spread 加速外扩</li><li>f58 闪白 → 巨 M 砸落到静置</li></ol></div>
+        <div class="fidelity"><strong>保真说明：</strong>霓虹 glow 用 CSS drop-shadow；无 plus-lighter 混合；闪白时长略夸张以便看见。<br/><span class="scene-link">Studio 真源：/workspace/magnific-remotion/src/scenes/Scene06_Transforms.tsx</span></div>
+      </div>
+      <div class="knob-panel" data-knobs></div>
+    </div>
+  </div>
+  <div class="panel" data-panel="s">
+    <div class="codepath">src/scenes/Scene06_Transforms.tsx · export MMonogram</div>
+    <pre>const TRANSFORMS_OUT = 21;
+const FLASH_PEAK = 58;
+const M_IN = 60;
+// topApexY / botApexY / legSpread keyed 0→24→42→54→FLASH_PEAK
+export const MMonogram = ({size,color}) => ...</pre>
+    <div class="reuse"><strong>抽走复用：</strong>品牌变形段；MMonogram 是全片少有已暴露组件。</div>
+  </div>
+  <div class="panel" data-panel="k">
+    <table class="knobs">
+      <thead><tr><th>接口 / 硬编码</th><th>位置</th><th>怎么用</th><th>标签</th></tr></thead>
+      <tbody><tr><td>transforms / into 文案</td><td>硬切</td><td>动词</td><td><span class='badge b-copy'>文案</span></td></tr><tr><td>FLASH_PEAK / spread keys</td><td>L32–70</td><td>闪白与张开</td><td><span class='badge b-feel'>手感</span></td></tr><tr><td><code>MMonogram</code></td><td>已 export</td><td>可直接复用 SVG</td><td><span class='badge b-asset'>组件</span></td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+
+<section class="atom" id="a07">
+  <div class="atom-head">
+    <div>
+      <h2>07 · MagnificLockup 品牌落幅</h2>
+      <div class="meta">Scene07_MagnificLockup.tsx · BEAT 07 · 150f</div>
+    </div>
+    <div class="pills"><span class="pill warn">改 wordmark</span><span class="pill">改纸色</span><span class="pill">改揭示窗</span></div>
+  </div>
+  <div class="tabs" data-tabs>
+    <button class="tab active" data-tab="p">Live 预览</button>
+    <button class="tab" data-tab="s">源码</button>
+    <button class="tab" data-tab="k">可调接口</button>
+  </div>
+  <div class="panel active" data-panel="p">
+    <div class="stage-wrap">
+      <div>
+        <div class="stage" data-stage></div>
+        <div data-transport></div>
+        <div class="phases"><strong>运动相位（对照源码）</strong><ol><li>0–4 独 M（承接 06）</li><li>4–24 wordmark 宽裁剪揭示（expoOut）</li><li>24–145 长 hold</li><li>145–150 fade</li></ol></div>
+        <div class="fidelity"><strong>保真说明：</strong>字宽按字符数估算，非测得 420px；无 Inter 实装（系统字体回退）。<br/><span class="scene-link">Studio 真源：/workspace/magnific-remotion/src/scenes/Scene07_MagnificLockup.tsx</span></div>
+      </div>
+      <div class="knob-panel" data-knobs></div>
+    </div>
+  </div>
+  <div class="panel" data-panel="s">
+    <div class="codepath">src/scenes/Scene07_MagnificLockup.tsx</div>
+    <pre>const WORD_FINAL_WIDTH = 420;
+const wordReveal = interpolate(frame,[4,24],[0,1],{easing: expoOut});
+// M path + "Magnific" Inter 700 / 78 / ls -2.4 · paper #f4f0e8 · ink #240a14</pre>
+    <div class="reuse"><strong>抽走复用：</strong>片尾锁相，几乎可原样换字。</div>
+  </div>
+  <div class="panel" data-panel="k">
+    <table class="knobs">
+      <thead><tr><th>接口 / 硬编码</th><th>位置</th><th>怎么用</th><th>标签</th></tr></thead>
+      <tbody><tr><td>wordmark 字符串</td><td>内文</td><td>换品牌名</td><td><span class='badge b-copy'>文案</span></td></tr><tr><td>paper / ink</td><td>PALETTE</td><td>纸与墨</td><td><span class='badge b-feel'>气质</span></td></tr><tr><td>揭示 [4,24]</td><td>wordReveal</td><td>速度</td><td><span class='badge b-dur'>时长</span></td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+
+<section class="atom" id="a08">
+  <div class="atom-head">
+    <div>
+      <h2>08 · 字幕 / 字效（共享模式 · 优先产品化）</h2>
+      <div class="meta">helpers.heroEnter + 各 Scene 内 TYPE_TIMINGS / 双行英雄字</div>
+    </div>
+    <div class="pills"><span class="pill ok">优先抽</span><span class="pill warn">改文案</span><span class="pill">改手感</span></div>
+  </div>
+  <div class="tabs" data-tabs>
+    <button class="tab active" data-tab="p">Live 预览</button>
+    <button class="tab" data-tab="s">源码</button>
+    <button class="tab" data-tab="k">可调接口</button>
+  </div>
+  <div class="panel active" data-panel="p">
+    <div class="stage-wrap">
+      <div>
+        <div class="stage" data-stage></div>
+        <div data-transport></div>
+        <div class="phases"><strong>运动相位（对照源码）</strong><ol><li>Hard-cut：TYPE_TIMINGS 按 in/out 瞬间换字（无淡化）</li><li>heroEnter：弹簧缩放+Y 位移+breath（MOTION.heroSpring）</li><li>底部色条 = 各段占用时间轴，可对照切点</li></ol></div>
+        <div class="fidelity"><strong>保真说明：</strong>弹簧为 CSS/插值近似，非 Remotion spring 数值解；breath 振幅可见但非逐帧一致。<br/><span class="scene-link">Studio 真源：/workspace/magnific-remotion/src/helpers.ts</span></div>
+      </div>
+      <div class="knob-panel" data-knobs></div>
+    </div>
+  </div>
+  <div class="panel" data-panel="s">
+    <div class="codepath">src/helpers.ts · heroEnter / springProgress · Scene01 TYPE_TIMINGS 等</div>
+    <pre>// helpers.ts
+export const heroEnter = (frame, fps, delay=4) => {
+  const p = spring({frame, fps, config: MOTION.heroSpring});
+  const breath = Math.sin((frame-(delay+14))*0.045)*0.012;
+  return { scale: p*(1+breath), translateY:(1-p)*40, opacity:p };
+};
+// Scene01 TYPE_TIMINGS — hard cut, no crossfade</pre>
+    <div class="reuse"><strong>抽走复用：</strong>最先产品化：做成可配置字幕轨组件，再套进任意 Scene。</div>
+  </div>
+  <div class="panel" data-panel="k">
+    <table class="knobs">
+      <thead><tr><th>接口 / 硬编码</th><th>位置</th><th>怎么用</th><th>标签</th></tr></thead>
+      <tbody><tr><td><code>TYPE_TIMINGS[]</code></td><td>各 Scene</td><td>文案+切帧</td><td><span class='badge b-copy'>文案</span></td></tr><tr><td><code>heroEnter</code> / MOTION.heroSpring</td><td>helpers + tokens</td><td>大字入场</td><td><span class='badge b-feel'>手感</span></td></tr><tr><td>FONT / PALETTE.white</td><td>tokens</td><td>字重颜色</td><td><span class='badge b-feel'>气质</span></td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<div class="footer">
+  B 子册 · 动效原子库 Live Sim v2 · 源码对照 Magnific Remotion 仓。<br/>
+  标签：浏览器近似模拟 · 非 Remotion 像素导出。要导出成片请 <code>npx remotion studio</code> 对源 Scene。
+</div>
+</main>
+</div>
+<script src="sim.js"></script>
+</body>
+</html>
